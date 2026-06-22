@@ -13,6 +13,7 @@ const screens = {
   others: document.getElementById('screen-others'),
   postvak: document.getElementById('screen-postvak'),
   admin: document.getElementById('screen-admin'),
+  settings: document.getElementById('screen-settings'),
 };
 
 function show(name) {
@@ -104,7 +105,48 @@ async function renderMain() {
   hideUndo();
   refreshBell();
   refreshSyncStatus();
+  refreshGear();
   show('main');
+}
+
+function refreshGear() {
+  document.getElementById('go-admin').hidden = !store.isHostUnlocked();
+}
+
+// --- Instellingen (naam tikken) --------------------------------------------
+
+async function renderSettings() {
+  const me = await store.getMemberById(await store.getCurrentUserId());
+  document.getElementById('settings-name').textContent = me ? me.naam : '—';
+  const host = store.isHostUnlocked();
+  document.getElementById('settings-hostlogin').hidden = host;
+  document.getElementById('settings-hostlogout').hidden = !host;
+  show('settings');
+}
+
+function askCode(reden) {
+  const pin = window.prompt(reden);
+  if (pin == null) return false;
+  if (pin !== HOST_PIN) { toast('Foute code'); return false; }
+  return true;
+}
+
+async function settingsSwitch() {
+  if (!askCode('Code drankleiding (om van persoon te wisselen):')) return;
+  await renderOnboarding();
+}
+
+async function settingsHostLogin() {
+  if (!askCode('Code drankleiding:')) return;
+  store.unlockHost();
+  toast('Drankleiding-modus aan');
+  await renderMain();
+}
+
+async function settingsHostLogout() {
+  store.lockHost();
+  toast('Drankleiding-modus uit');
+  await renderMain();
 }
 
 async function registerDrink(drink, btn) {
@@ -277,11 +319,11 @@ async function renderPostvak() {
 // --- Beheer (host) ---------------------------------------------------------
 
 let adminDate = new Date();
+let editPersonId = null;
 
-async function enterAdmin() {
-  const pin = window.prompt('Pincode drankleiding:');
-  if (pin == null) return;
-  if (pin !== HOST_PIN) { toast('Foute pincode'); return; }
+// Het tandwiel is verborgen voor niet-hosts; openen vraagt dus geen code meer.
+async function openAdmin() {
+  if (!store.isHostUnlocked()) return;
   adminDate = new Date();
   await store.syncStock(store.monthKey(adminDate));
   await renderAdmin();
@@ -290,9 +332,71 @@ async function enterAdmin() {
 async function renderAdmin() {
   document.getElementById('admin-month').textContent = `${MONTHS[adminDate.getMonth()]} ${adminDate.getFullYear()}`;
   await renderAdminRequests();
+  await renderAdminPersonEdit();
   await renderAdminStock();
   await renderAdminReport();
+  await renderAdminLog();
   show('admin');
+}
+
+// Tellingen per persoon corrigeren.
+async function renderAdminPersonEdit() {
+  const sel = document.getElementById('edit-person');
+  const members = await store.getMembers();
+  const prev = editPersonId;
+  sel.innerHTML = '';
+  for (const m of members) {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.naam;
+    sel.appendChild(o);
+  }
+  editPersonId = (prev && members.some((m) => m.id === prev)) ? prev : (members[0] && members[0].id);
+  sel.value = editPersonId;
+  await renderEditRows();
+}
+
+async function renderEditRows() {
+  const wrap = document.getElementById('edit-rows');
+  wrap.innerHTML = '';
+  if (!editPersonId) return;
+  const counts = await store.getCountsForPerson(editPersonId, adminDate);
+  for (const d of DRINKS) {
+    const n = counts[d.code] || 0;
+    const row = document.createElement('div');
+    row.className = 'edit-row';
+    row.innerHTML = `<span class="edit-row__name">${d.emoji} ${d.naam}</span>`;
+    const minus = document.createElement('button');
+    minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−'; minus.disabled = n === 0;
+    minus.addEventListener('click', () => store.hostRemoveOne(editPersonId, d.code, adminDate));
+    const cnt = document.createElement('span');
+    cnt.className = 'edit-row__count'; cnt.textContent = n;
+    const plus = document.createElement('button');
+    plus.type = 'button'; plus.className = 'stepbtn'; plus.textContent = '+';
+    plus.addEventListener('click', () => store.hostAddOne(editPersonId, d.code));
+    row.append(minus, cnt, plus);
+    wrap.appendChild(row);
+  }
+}
+
+// Logboek: wie nam wanneer wat.
+async function renderAdminLog() {
+  const log = (await store.getLogForMonth(adminDate)).slice(0, 200);
+  const list = document.getElementById('admin-log');
+  const empty = document.getElementById('admin-log-empty');
+  list.innerHTML = '';
+  empty.hidden = log.length > 0;
+  for (const e of log) {
+    const d = DRINK_BY_CODE[e.drinkCode];
+    const li = document.createElement('li');
+    li.className = 'log-row' + (e.status === 'verwijderd' ? ' is-removed' : '');
+    const door = e.door ? ` · door ${e.door}` : '';
+    const pend = e.status === 'pending_delete' ? ' ⏳' : '';
+    li.innerHTML =
+      `<span class="log-row__name">${e.persoon}</span>` +
+      `<span class="log-row__drink">${d ? d.naam : e.drinkCode}${door}${pend}</span>` +
+      `<span class="log-row__time">${fmtTime(e.tijdstip)}</span>`;
+    list.appendChild(li);
+  }
 }
 
 async function renderAdminRequests() {
@@ -435,15 +539,16 @@ function refreshBell() {
 store.subscribe(() => {
   refreshSyncStatus();
   refreshBell();
+  refreshGear();
   if (!screens.overview.hidden) renderOverview();
   if (!screens.postvak.hidden) renderPostvak();
-  if (!screens.admin.hidden) { renderAdminRequests(); renderAdminReport(); }
+  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAdminLog(); }
 });
 
 // --- Bedrading -------------------------------------------------------------
 
 document.getElementById('undo-btn').addEventListener('click', undoLast);
-document.getElementById('who-am-i').addEventListener('click', renderOnboarding);
+document.getElementById('who-am-i').addEventListener('click', renderSettings);
 document.getElementById('go-overview').addEventListener('click', renderOverview);
 document.getElementById('back-main').addEventListener('click', renderMain);
 document.getElementById('go-others').addEventListener('click', renderOthers);
@@ -451,11 +556,16 @@ document.getElementById('others-back').addEventListener('click', renderMain);
 document.getElementById('others-confirm').addEventListener('click', confirmOthers);
 document.getElementById('go-postvak').addEventListener('click', async () => { await renderPostvak(); await store.markNotificationsSeen(); });
 document.getElementById('postvak-back').addEventListener('click', renderMain);
-document.getElementById('go-admin').addEventListener('click', enterAdmin);
+document.getElementById('go-admin').addEventListener('click', openAdmin);
 document.getElementById('admin-back').addEventListener('click', renderMain);
 document.getElementById('copy-export').addEventListener('click', copyExport);
 document.getElementById('month-prev').addEventListener('click', () => changeMonth(-1));
 document.getElementById('month-next').addEventListener('click', () => changeMonth(1));
+document.getElementById('settings-back').addEventListener('click', renderMain);
+document.getElementById('settings-switch').addEventListener('click', settingsSwitch);
+document.getElementById('settings-hostlogin').addEventListener('click', settingsHostLogin);
+document.getElementById('settings-hostlogout').addEventListener('click', settingsHostLogout);
+document.getElementById('edit-person').addEventListener('change', (e) => { editPersonId = e.target.value; renderEditRows(); });
 
 async function init() {
   store.init();

@@ -34,7 +34,7 @@
         🔔<span id="bell-badge" class="badge" hidden></span>
       </button>
       <button id="go-overview" class="iconbtn" type="button" aria-label="Overzicht">📊</button>
-      <button id="go-admin" class="iconbtn" type="button" aria-label="Beheer">⚙️</button>
+      <button id="go-admin" class="iconbtn" type="button" aria-label="Beheer" hidden>⚙️</button>
     </header>
 
     <main class="drinks">
@@ -47,6 +47,22 @@
       <span id="undo-text" class="undo-bar__text"></span>
       <button id="undo-btn" class="undo-bar__btn" type="button">Ongedaan maken</button>
     </div>
+  </section>
+
+  <!-- ===== Instellingen (naam tikken) ===== -->
+  <section id="screen-settings" class="screen" hidden>
+    <header class="topbar">
+      <button id="settings-back" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 class="topbar__title">Instellingen</h2>
+      <span class="iconbtn iconbtn--ghost">←</span>
+    </header>
+    <main class="settings">
+      <p class="settings__who">Ingelogd als <b id="settings-name">—</b></p>
+      <button id="settings-switch" class="bigbtn bigbtn--ghost" type="button">Wissel van persoon / uitloggen</button>
+      <button id="settings-hostlogin" class="bigbtn" type="button">Inloggen als drankleiding</button>
+      <button id="settings-hostlogout" class="bigbtn bigbtn--ghost" type="button" hidden>Drankleiding-modus uitschakelen</button>
+      <p class="settings__hint">Wisselen van persoon en inloggen als drankleiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
+    </main>
   </section>
 
   <!-- ===== Voor anderen (rondje) ===== -->
@@ -102,6 +118,13 @@
       </section>
 
       <section class="card">
+        <h3 class="card__title">Aanpassen per persoon</h3>
+        <p class="card__hint">Corrigeer hoeveel iemand heeft. Wijzigingen tellen meteen mee.</p>
+        <select id="edit-person" class="select"></select>
+        <div id="edit-rows" class="edit-rows"></div>
+      </section>
+
+      <section class="card">
         <h3 class="card__title">Voorraad</h3>
         <p class="card__hint">Vul in per drankje: <b>in</b> (begin) en <b>rest</b> (geteld op het einde).</p>
         <div id="admin-stock" class="stock-grid"></div>
@@ -113,6 +136,13 @@
         <p id="admin-zwerf" class="zwerf-line"></p>
         <textarea id="export-text" class="export" readonly rows="8"></textarea>
         <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
+      </section>
+
+      <section class="card">
+        <h3 class="card__title">Log</h3>
+        <p class="card__hint">Wie nam wanneer wat. Doorgestreept = verwijderd.</p>
+        <ul id="admin-log" class="log-list"></ul>
+        <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd deze maand.</p>
       </section>
     </main>
   </section>

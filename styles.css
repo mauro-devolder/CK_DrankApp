@@ -357,6 +357,36 @@ button { font-family: inherit; cursor: pointer; }
 }
 .bigbtn:active { filter: brightness(1.08); }
 
+/* ===== Instellingen ===== */
+.settings { flex: 1; padding: 20px; max-width: 560px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.settings__who { font-size: 1.1rem; margin: 4px 0 10px; }
+.settings__hint { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+.bigbtn--ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+
+/* ===== Aanpassen per persoon ===== */
+.select {
+  width: 100%; padding: 14px; font-size: 1.05rem; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--bg); color: var(--text); margin-bottom: 12px;
+}
+.edit-rows { display: flex; flex-direction: column; gap: 8px; }
+.edit-row { display: flex; align-items: center; gap: 12px; }
+.edit-row__name { flex: 1; font-weight: 600; }
+.edit-row__count { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stepbtn {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font-size: 1.4rem; font-weight: 700; line-height: 1;
+}
+.stepbtn:active { background: var(--line); }
+.stepbtn:disabled { opacity: 0.35; }
+
+/* ===== Log ===== */
+.log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+.log-row { display: flex; align-items: baseline; gap: 8px; font-size: 0.95rem; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+.log-row__name { font-weight: 600; }
+.log-row__drink { flex: 1; color: var(--muted); }
+.log-row__time { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+.log-row.is-removed { opacity: 0.5; text-decoration: line-through; }
+
 /* ===== Toast ===== */
 .toast {
   position: fixed;

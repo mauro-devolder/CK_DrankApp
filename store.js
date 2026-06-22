@@ -18,6 +18,7 @@ const KEY_USER = 'drank.currentUserId';
 const KEY_CONS = 'drank.consumptions';
 const KEY_SEEN = 'drank.seenNotifs';
 const KEY_STOCK = 'drank.stock';
+const KEY_HOST = 'drank.hostUnlocked';
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }
@@ -50,6 +51,11 @@ export async function isHost(id) { const m = MEMBERS.find((x) => x.id === id); r
 export async function getCurrentUserId() { return curUser(); }
 export async function setCurrentUserId(id) { save(KEY_USER, id); }
 export async function clearCurrentUser() { localStorage.removeItem(KEY_USER); }
+
+// Host-modus blijft op dit toestel bewaard nadat de code 1x correct is ingegeven.
+export function isHostUnlocked() { return load(KEY_HOST, false) === true; }
+export function unlockHost() { save(KEY_HOST, true); emit(); }
+export function lockHost() { save(KEY_HOST, false); emit(); }
 
 // --- Registraties ----------------------------------------------------------
 
@@ -168,6 +174,58 @@ export async function getPendingDeletes() {
       drinkCode: c.drinkCode,
       tijdstip: c.tijdstip,
     }));
+}
+
+// --- Host: log + tellingen per persoon aanpassen ---------------------------
+
+// Volledig logboek van een maand (alle statussen), nieuwste eerst.
+export async function getLogForMonth(date = new Date()) {
+  const y = date.getFullYear(), m = date.getMonth();
+  return loadCons()
+    .filter((c) => { const t = new Date(c.tijdstip); return t.getFullYear() === y && t.getMonth() === m; })
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
+    .map((c) => ({
+      id: c.id,
+      persoon: memberName(c.personId),
+      door: c.registeredBy !== c.personId ? memberName(c.registeredBy) : null,
+      drinkCode: c.drinkCode,
+      tijdstip: c.tijdstip,
+      status: c.status,
+    }));
+}
+
+// Actieve tellingen van één persoon in een maand: { p: 3, f: 1 }
+export async function getCountsForPerson(personId, date = new Date()) {
+  const counts = {};
+  for (const c of activeForMonth(date)) {
+    if (c.personId === personId) counts[c.drinkCode] = (counts[c.drinkCode] || 0) + 1;
+  }
+  return counts;
+}
+
+// Host voegt er één toe (registered_by = de persoon zelf, dus geen melding).
+export async function hostAddOne(personId, drinkCode) {
+  return addConsumption({ personId, drinkCode, registeredBy: personId });
+}
+
+// Host haalt er één weg: de meest recente actieve van die persoon+drank in de maand.
+export async function hostRemoveOne(personId, drinkCode, date = new Date()) {
+  const all = loadCons();
+  const y = date.getFullYear(), m = date.getMonth();
+  const cands = all
+    .filter((c) => {
+      if (c.personId !== personId || c.drinkCode !== drinkCode || c.status !== 'actief') return false;
+      const t = new Date(c.tijdstip);
+      return t.getFullYear() === y && t.getMonth() === m;
+    })
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip));
+  if (!cands.length) return false;
+  const target = cands[0];
+  if (!target.synced) saveCons(all.filter((c) => c.id !== target.id));
+  else { target.status = 'verwijderd'; target.synced = false; saveCons(all); }
+  emit();
+  scheduleSync();
+  return true;
 }
 
 // --- Voorraad --------------------------------------------------------------
