@@ -43,7 +43,7 @@ export const MEMBERS = [
 export const DRINKS = [
   { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0 },
   { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1 },
-  { code: 'c', naam: 'Chips',      emoji: '🍟', kleur: '#e0b020', order: 2 },
+  { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2 },
   { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3 },
   { code: 's', naam: 'Sterk bier', emoji: '🍻', kleur: '#9a6a2f', order: 4 },
   { code: 'k', naam: 'Kriek',      emoji: '🍒', kleur: '#c0314f', order: 5 },
