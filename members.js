@@ -45,13 +45,13 @@ export const MEMBERS = [
 // bv. img: 'img/pint.png'. Staat 'img' ingevuld, dan toont de app de foto i.p.v.
 // de emoji. Laat 'img' weg (of null) om de emoji te gebruiken.
 export const DRINKS = [
-  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0, img: null },
-  { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1, img: null },
-  { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2, img: null },
-  { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3, img: null },
-  { code: 's', naam: 'Sterk bier', emoji: '🍻', kleur: '#9a6a2f', order: 4, img: null },
-  { code: 'k', naam: 'Kriek',      emoji: '🍒', kleur: '#c0314f', order: 5, img: null },
-  { code: 'd', naam: 'Desperados', emoji: '🌵', kleur: '#5aa84a', order: 6, img: null },
+  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0, img: 'img/pint.png' },
+  { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1, img: 'img/frisdrank.png' },
+  { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2, img: 'img/chips.png' },
+  { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3, img: 'img/water.png' },
+  { code: 's', naam: 'Sterk bier', emoji: '🍻', kleur: '#9a6a2f', order: 4, img: 'img/sterkbier.png' },
+  { code: 'k', naam: 'Kriek',      emoji: '🍒', kleur: '#c0314f', order: 5, img: 'img/kriek.png' },
+  { code: 'd', naam: 'Desperados', emoji: '🌵', kleur: '#5aa84a', order: 6, img: 'img/desperados.png' },
 ];
 
 export const DRINK_BY_CODE = Object.fromEntries(DRINKS.map((d) => [d.code, d]));
@@ -59,6 +59,6 @@ export const DRINK_BY_CODE = Object.fromEntries(DRINKS.map((d) => [d.code, d]));
 // Snelknoppen die in één tik meerdere pinten op jezelf zetten.
 // Ook hier kan 'img' een eigen foto zijn (bv. img: 'img/bak.png').
 export const BULK = [
-  { id: 'halve-bak', naam: 'Halve bak', code: 'p', aantal: 12, emoji: '🍺', kleur: '#b8863a', img: null },
-  { id: 'bak',       naam: 'Bak',       code: 'p', aantal: 24, emoji: '📦', kleur: '#8a5a22', img: null },
+  { id: 'halve-bak', naam: 'Halve bak', code: 'p', aantal: 12, emoji: '🍺', kleur: '#b8863a', img: 'img/halvebak.png' },
+  { id: 'bak',       naam: 'Bak',       code: 'p', aantal: 24, emoji: '📦', kleur: '#8a5a22', img: 'img/bak.png' },
 ];
