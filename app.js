@@ -651,6 +651,9 @@ document.getElementById('edit-person').addEventListener('change', (e) => { editP
 document.getElementById('reset-all').addEventListener('click', doResetAll);
 
 async function init() {
+  // Vraag persistente opslag aan: vermindert dat iOS de offline-wachtrij en de
+  // bewaarde naam wist als de app ~7 dagen niet geopend wordt.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   store.init();
   refreshSyncStatus();
   const id = await store.getCurrentUserId();
