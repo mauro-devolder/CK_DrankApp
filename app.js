@@ -378,24 +378,91 @@ async function renderEditRows() {
   }
 }
 
-// Logboek: wie nam wanneer wat.
+// Een Chiro-"dag"/"week" begint om 08:00, zodat een drankje om 01:00 's nachts
+// nog bij de dag/week ervoor hoort. Truc: schuif het tijdstip 8u terug.
+const WEEKDAYS = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
+function chiroDayStart(t) {
+  const d = new Date(t.getTime() - 8 * 3600 * 1000);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 0, 0, 0);
+}
+function dayStartMs(t) { return chiroDayStart(t).getTime(); }
+function weekStartMs(t) {
+  const ds = chiroDayStart(t);
+  const back = (ds.getDay() + 6) % 7; // maandag = 0
+  return new Date(ds.getFullYear(), ds.getMonth(), ds.getDate() - back, 8, 0, 0, 0).getTime();
+}
+function dayLabel(ms) {
+  const d = new Date(ms);
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+}
+function weekLabel(ms) {
+  const s = new Date(ms), e = new Date(ms + 6 * 86400000);
+  return `Week ${s.getDate()} ${MONTHS[s.getMonth()].slice(0, 3)} – ${e.getDate()} ${MONTHS[e.getMonth()].slice(0, 3)}`;
+}
+
+// Aggregeer een groep tot één regel per persoon+drank: "Suzanne · Pint ×23".
+function buildLogGroup(label, entries) {
+  const agg = new Map();
+  for (const e of entries) {
+    const k = `${e.personId}|${e.drinkCode}`;
+    if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, n: 0 });
+    agg.get(k).n++;
+  }
+  const rows = [...agg.values()].sort((a, b) =>
+    a.persoon.localeCompare(b.persoon, 'nl') ||
+    (DRINK_BY_CODE[a.code].order - DRINK_BY_CODE[b.code].order));
+
+  const li = document.createElement('li');
+  const det = document.createElement('details');
+  const sum = document.createElement('summary');
+  sum.className = 'log-sum';
+  sum.innerHTML = `<span>${label}</span><span class="log-sum__count">${entries.length}</span>`;
+  det.appendChild(sum);
+  const inner = document.createElement('div');
+  inner.className = 'log-agg';
+  for (const r of rows) {
+    const d = DRINK_BY_CODE[r.code];
+    const line = document.createElement('div');
+    line.className = 'log-aggrow';
+    line.innerHTML =
+      `<span class="log-aggrow__name">${r.persoon}</span>` +
+      `<span class="log-aggrow__drink">${d ? d.naam : r.code}</span>` +
+      `<span class="log-aggrow__n">×${r.n}</span>`;
+    inner.appendChild(line);
+  }
+  det.appendChild(inner);
+  li.appendChild(det);
+  return li;
+}
+
+// Logboek: huidige week per dag, vorige weken per week. Inklapbaar.
 async function renderAdminLog() {
-  const log = (await store.getLogForMonth(adminDate)).slice(0, 200);
+  const entries = (await store.getLogForMonth(adminDate)).filter((e) => e.status === 'actief');
   const list = document.getElementById('admin-log');
   const empty = document.getElementById('admin-log-empty');
   list.innerHTML = '';
-  empty.hidden = log.length > 0;
-  for (const e of log) {
-    const d = DRINK_BY_CODE[e.drinkCode];
-    const li = document.createElement('li');
-    li.className = 'log-row' + (e.status === 'verwijderd' ? ' is-removed' : '');
-    const door = e.door ? ` · door ${e.door}` : '';
-    const pend = e.status === 'pending_delete' ? ' ⏳' : '';
-    li.innerHTML =
-      `<span class="log-row__name">${e.persoon}</span>` +
-      `<span class="log-row__drink">${d ? d.naam : e.drinkCode}${door}${pend}</span>` +
-      `<span class="log-row__time">${fmtTime(e.tijdstip)}</span>`;
-    list.appendChild(li);
+  empty.hidden = entries.length > 0;
+
+  const curWeek = weekStartMs(new Date());
+  const days = new Map();   // huidige week → per dag
+  const weeks = new Map();  // vorige weken → per week
+  for (const e of entries) {
+    const t = new Date(e.tijdstip);
+    if (weekStartMs(t) === curWeek) {
+      const dk = dayStartMs(t);
+      (days.get(dk) || days.set(dk, []).get(dk)).push(e);
+    } else {
+      const wk = weekStartMs(t);
+      (weeks.get(wk) || weeks.set(wk, []).get(wk)).push(e);
+    }
+  }
+
+  for (const dk of [...days.keys()].sort((a, b) => b - a)) {
+    list.appendChild(buildLogGroup(dayLabel(dk), days.get(dk)));
+  }
+  for (const wk of [...weeks.keys()].sort((a, b) => b - a)) {
+    list.appendChild(buildLogGroup(weekLabel(wk), weeks.get(wk)));
   }
 }
 
@@ -542,7 +609,8 @@ store.subscribe(() => {
   refreshGear();
   if (!screens.overview.hidden) renderOverview();
   if (!screens.postvak.hidden) renderPostvak();
-  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAdminLog(); }
+  // Log niet live verversen: zo blijven opengeklapte groepen open.
+  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); }
 });
 
 // --- Bedrading -------------------------------------------------------------

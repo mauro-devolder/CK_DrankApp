@@ -186,6 +186,7 @@ export async function getLogForMonth(date = new Date()) {
     .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
     .map((c) => ({
       id: c.id,
+      personId: c.personId,
       persoon: memberName(c.personId),
       door: c.registeredBy !== c.personId ? memberName(c.registeredBy) : null,
       drinkCode: c.drinkCode,
