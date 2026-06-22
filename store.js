@@ -1,0 +1,268 @@
+// Data-laag met offline-wachtrij + automatische sync naar Supabase.
+//
+//  - Elke tik wordt ONMIDDELLIJK lokaal opgeslagen (synced:false); de UI
+//    reageert meteen, ook zonder bereik (kelder).
+//  - sync() pusht alle niet-gesyncte wijzigingen (toevoegen, verwijderen,
+//    statuswijzigingen) en haalt de registraties van anderen op.
+//  - Client-UUID's + upsert = nooit dubbel tellen.
+//  - Verwijderen is een STATUSwijziging ('verwijderd'), geen harde delete, zodat
+//    een verwijdering ook naar andere toestellen propageert.
+//  - Zonder Supabase-config draait alles lokaal.
+
+import { MEMBERS } from './members.js';
+import * as api from './api.js';
+
+export const isConfigured = api.isConfigured;
+
+const KEY_USER = 'drank.currentUserId';
+const KEY_CONS = 'drank.consumptions';
+const KEY_SEEN = 'drank.seenNotifs';
+const KEY_STOCK = 'drank.stock';
+
+const listeners = new Set();
+function emit() { for (const fn of listeners) fn(); }
+export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+function load(key, fallback) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch { return fallback; }
+}
+function save(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
+function loadCons() { return load(KEY_CONS, []); }
+function saveCons(arr) { save(KEY_CONS, arr); }
+function memberName(id) { const m = MEMBERS.find((x) => x.id === id); return m ? m.naam : '??'; }
+function curUser() { return load(KEY_USER, null); }
+
+function newId() {
+  if (crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'c_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+}
+
+// --- Leden -----------------------------------------------------------------
+
+export async function getMembers() { return MEMBERS.filter((m) => m.actief); }
+export async function getMemberById(id) { return MEMBERS.find((m) => m.id === id) || null; }
+export async function isHost(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.host); }
+
+// --- Identiteit op dit toestel ---------------------------------------------
+
+export async function getCurrentUserId() { return curUser(); }
+export async function setCurrentUserId(id) { save(KEY_USER, id); }
+export async function clearCurrentUser() { localStorage.removeItem(KEY_USER); }
+
+// --- Registraties ----------------------------------------------------------
+
+// registeredBy = wie tikte (default = personId zelf). Voor een rondje zet je
+// drankjes op anderen: personId = ontvanger, registeredBy = jij.
+export async function addConsumption({ personId, drinkCode, registeredBy }) {
+  const all = loadCons();
+  const entry = {
+    id: newId(),
+    personId,
+    registeredBy: registeredBy || personId,
+    drinkCode,
+    tijdstip: new Date().toISOString(),
+    status: 'actief',
+    synced: false,
+  };
+  all.push(entry);
+  saveCons(all);
+  emit();
+  scheduleSync();
+  return entry;
+}
+
+function setStatus(id, status) {
+  const all = loadCons();
+  const c = all.find((x) => x.id === id);
+  if (!c) return;
+  if (status === 'verwijderd' && !c.synced) {
+    saveCons(all.filter((x) => x.id !== id)); // stond nog niet op server
+  } else {
+    c.status = status;
+    c.synced = false;
+    saveCons(all);
+  }
+  emit();
+  scheduleSync();
+}
+
+// Zelf-correctie binnen het venster (mis getikt) -> meteen weg.
+export async function removeConsumption(id) { setStatus(id, 'verwijderd'); }
+
+// Iemand vraagt een host om een (oudere) registratie te verwijderen.
+export async function requestDeletion(id) { setStatus(id, 'pending_delete'); }
+
+// Host beslist.
+export async function approveDeletion(id) { setStatus(id, 'verwijderd'); }
+export async function rejectDeletion(id) { setStatus(id, 'actief'); }
+
+function activeForMonth(date) {
+  const y = date.getFullYear(), m = date.getMonth();
+  return loadCons().filter((c) => {
+    if (c.status !== 'actief') return false;
+    const t = new Date(c.tijdstip);
+    return t.getFullYear() === y && t.getMonth() === m;
+  });
+}
+
+export async function getConsumptionsForMonth(date = new Date()) { return activeForMonth(date); }
+
+export async function getTotalsForMonth(date = new Date()) {
+  const totals = {};
+  for (const c of activeForMonth(date)) {
+    totals[c.personId] = totals[c.personId] || {};
+    totals[c.personId][c.drinkCode] = (totals[c.personId][c.drinkCode] || 0) + 1;
+  }
+  return totals;
+}
+
+// --- Postvak (drankjes die anderen op mijn naam zetten) --------------------
+
+function seenSet() { return new Set(load(KEY_SEEN, [])); }
+
+export async function getNotifications() {
+  const me = curUser();
+  const seen = seenSet();
+  return loadCons()
+    .filter((c) => c.personId === me && c.registeredBy !== me && c.status !== 'verwijderd')
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
+    .map((c) => ({
+      id: c.id,
+      door: memberName(c.registeredBy),
+      drinkCode: c.drinkCode,
+      tijdstip: c.tijdstip,
+      status: c.status,
+      seen: seen.has(c.id),
+    }));
+}
+
+export function getUnseenNotificationCount() {
+  const me = curUser();
+  const seen = seenSet();
+  return loadCons().filter(
+    (c) => c.personId === me && c.registeredBy !== me && c.status === 'actief' && !seen.has(c.id)
+  ).length;
+}
+
+export async function markNotificationsSeen() {
+  const me = curUser();
+  const ids = loadCons()
+    .filter((c) => c.personId === me && c.registeredBy !== me)
+    .map((c) => c.id);
+  save(KEY_SEEN, [...new Set([...load(KEY_SEEN, []), ...ids])]);
+  emit();
+}
+
+// --- Host: openstaande verwijderverzoeken ----------------------------------
+
+export async function getPendingDeletes() {
+  return loadCons()
+    .filter((c) => c.status === 'pending_delete')
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
+    .map((c) => ({
+      id: c.id,
+      voor: memberName(c.personId),
+      door: memberName(c.registeredBy),
+      drinkCode: c.drinkCode,
+      tijdstip: c.tijdstip,
+    }));
+}
+
+// --- Voorraad --------------------------------------------------------------
+
+export function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function loadStock() { return load(KEY_STOCK, {}); }
+
+// -> { p: { in: 200, rest: 12 }, ... } voor de gevraagde maand
+export async function getStock(maand) {
+  const store = loadStock();
+  const out = {};
+  for (const [k, v] of Object.entries(store)) {
+    const [mnd, code, type] = k.split('|');
+    if (mnd !== maand) continue;
+    out[code] = out[code] || {};
+    out[code][type] = v;
+  }
+  return out;
+}
+
+export async function setStock(maand, drinkCode, type, aantal) {
+  const store = loadStock();
+  store[`${maand}|${drinkCode}|${type}`] = aantal;
+  save(KEY_STOCK, store);
+  emit();
+  if (api.isConfigured() && navigator.onLine) {
+    try { await api.upsertStock({ drinkCode, type, aantal, maand }); }
+    catch (e) { console.warn('voorraad opslaan mislukt:', e.message); }
+  }
+}
+
+export async function syncStock(maand) {
+  if (!api.isConfigured() || !navigator.onLine) return;
+  try {
+    const rows = await api.fetchStock(maand);
+    const store = loadStock();
+    for (const r of rows) store[`${r.maand}|${r.drink_code}|${r.type}`] = r.aantal;
+    save(KEY_STOCK, store);
+  } catch (e) { console.warn('voorraad ophalen mislukt:', e.message); }
+}
+
+// --- Sync ------------------------------------------------------------------
+
+let syncing = false;
+let syncTimer = null;
+
+function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 400); }
+
+export function getPendingCount() { return loadCons().filter((c) => !c.synced).length; }
+
+function monthBounds(date = new Date()) {
+  return {
+    from: new Date(date.getFullYear(), date.getMonth(), 1).toISOString(),
+    to: new Date(date.getFullYear(), date.getMonth() + 1, 1).toISOString(),
+  };
+}
+
+export async function syncNow() {
+  if (syncing || !api.isConfigured() || !navigator.onLine) return;
+  syncing = true;
+  try {
+    let all = loadCons();
+
+    // 1) Pushen wat nog niet gesynct is (adds, verwijderingen, statuswijzigingen).
+    const toPush = all.filter((c) => !c.synced);
+    if (toPush.length) {
+      await api.pushConsumptions(toPush);
+      for (const c of toPush) c.synced = true;
+    }
+
+    // 2) Ophalen wat anderen deze maand deden + statussen van anderen overnemen.
+    const { from, to } = monthBounds();
+    const server = await api.fetchRange(from, to);
+    const byId = new Map(all.map((c) => [c.id, c]));
+    for (const row of server) {
+      const local = byId.get(row.id);
+      if (!local) { all.push(row); byId.set(row.id, row); }
+      else if (local.synced) { local.status = row.status; } // server is leidend
+    }
+
+    saveCons(all);
+    await syncStock(monthKey());
+    emit();
+  } catch (err) {
+    console.warn('sync mislukt, opnieuw bij volgende poging:', err.message);
+  } finally {
+    syncing = false;
+  }
+}
+
+export function init() {
+  window.addEventListener('online', syncNow);
+  setInterval(() => { if (navigator.onLine) syncNow(); }, 20_000);
+  syncNow();
+}

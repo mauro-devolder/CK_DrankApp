@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f6f4a" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <title>Chiro Drankjes</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===== Onboarding: kies eenmalig je naam ===== -->
+  <section id="screen-onboarding" class="screen" hidden>
+    <div class="onboarding">
+      <h1 class="onboarding__title">Wie ben jij?</h1>
+      <p class="onboarding__sub">Kies één keer je naam. Dit toestel onthoudt het daarna.</p>
+      <input id="member-search" class="search" type="search"
+             placeholder="Zoek je naam…" autocomplete="off" />
+      <ul id="member-list" class="member-list"></ul>
+    </div>
+  </section>
+
+  <!-- ===== Hoofdscherm: drankje registreren ===== -->
+  <section id="screen-main" class="screen" hidden>
+    <header class="topbar">
+      <button id="who-am-i" class="whoami" type="button">
+        <span class="whoami__label">Ik ben</span>
+        <span id="current-name" class="whoami__name">—</span>
+      </button>
+      <span id="sync-status" class="syncpill" hidden></span>
+      <button id="go-postvak" class="iconbtn" type="button" aria-label="Postvak">
+        🔔<span id="bell-badge" class="badge" hidden></span>
+      </button>
+      <button id="go-overview" class="iconbtn" type="button" aria-label="Overzicht">📊</button>
+      <button id="go-admin" class="iconbtn" type="button" aria-label="Beheer">⚙️</button>
+    </header>
+
+    <main class="drinks">
+      <div id="drink-grid" class="drink-grid"></div>
+      <button id="go-others" class="others-btn" type="button">＋ Voor anderen (rondje)</button>
+    </main>
+
+    <!-- Bevestiging + ongedaan maken (60s) -->
+    <div id="undo-bar" class="undo-bar" hidden>
+      <span id="undo-text" class="undo-bar__text"></span>
+      <button id="undo-btn" class="undo-bar__btn" type="button">Ongedaan maken</button>
+    </div>
+  </section>
+
+  <!-- ===== Voor anderen (rondje) ===== -->
+  <section id="screen-others" class="screen" hidden>
+    <header class="topbar">
+      <button id="others-back" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 class="topbar__title">Voor anderen</h2>
+      <span class="iconbtn iconbtn--ghost">←</span>
+    </header>
+    <main class="others">
+      <p class="others__step">1 · Kies een drankje</p>
+      <div id="others-drinks" class="chiprow"></div>
+      <p class="others__step">2 · Tik wie het krijgt</p>
+      <ul id="others-people" class="pick-list"></ul>
+    </main>
+    <div class="undo-bar">
+      <span id="others-summary" class="undo-bar__text">Kies een drankje</span>
+      <button id="others-confirm" class="undo-bar__btn" type="button" disabled>Zet</button>
+    </div>
+  </section>
+
+  <!-- ===== Postvak ===== -->
+  <section id="screen-postvak" class="screen" hidden>
+    <header class="topbar">
+      <button id="postvak-back" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 class="topbar__title">Postvak</h2>
+      <span class="iconbtn iconbtn--ghost">←</span>
+    </header>
+    <main class="overview">
+      <ul id="postvak-list" class="overview-list"></ul>
+      <p id="postvak-empty" class="overview-empty" hidden>Niemand zette een drankje op jouw naam.</p>
+    </main>
+  </section>
+
+  <!-- ===== Beheer (host) ===== -->
+  <section id="screen-admin" class="screen" hidden>
+    <header class="topbar">
+      <button id="admin-back" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 class="topbar__title">Beheer</h2>
+      <span class="iconbtn iconbtn--ghost">←</span>
+    </header>
+    <main class="admin">
+      <div class="monthnav">
+        <button id="month-prev" class="iconbtn" type="button" aria-label="Vorige maand">←</button>
+        <span id="admin-month" class="monthnav__label">—</span>
+        <button id="month-next" class="iconbtn" type="button" aria-label="Volgende maand">→</button>
+      </div>
+
+      <section class="card">
+        <h3 class="card__title">Verwijderverzoeken</h3>
+        <ul id="admin-requests" class="overview-list"></ul>
+        <p id="admin-requests-empty" class="overview-empty" hidden>Geen openstaande verzoeken.</p>
+      </section>
+
+      <section class="card">
+        <h3 class="card__title">Voorraad</h3>
+        <p class="card__hint">Vul in per drankje: <b>in</b> (begin) en <b>rest</b> (geteld op het einde).</p>
+        <div id="admin-stock" class="stock-grid"></div>
+      </section>
+
+      <section class="card">
+        <h3 class="card__title">Afrekening &amp; export</h3>
+        <ul id="admin-overview" class="overview-list"></ul>
+        <p id="admin-zwerf" class="zwerf-line"></p>
+        <textarea id="export-text" class="export" readonly rows="8"></textarea>
+        <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
+      </section>
+    </main>
+  </section>
+
+  <!-- ===== Overzicht ===== -->
+  <section id="screen-overview" class="screen" hidden>
+    <header class="topbar">
+      <button id="back-main" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 id="overview-title" class="topbar__title">Deze maand</h2>
+      <span class="iconbtn iconbtn--ghost">📊</span>
+    </header>
+    <main class="overview">
+      <ul id="overview-list" class="overview-list"></ul>
+      <p id="overview-empty" class="overview-empty" hidden>Nog geen drankjes deze maand.</p>
+    </main>
+  </section>
+
+  <!-- Klein meldingsvenster voor "naam gewijzigd" e.d. -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
