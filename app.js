@@ -218,6 +218,10 @@ async function registerBulk(bulk, btn) {
   if (now - (lastTap[bulk.id] || 0) < TAP_GUARD_MS) return;
   lastTap[bulk.id] = now;
 
+  // Bevestiging: een bak/halve bak zet er veel ineens bij, dus geen toevallige tik.
+  const drankNaam = DRINK_BY_CODE[bulk.code] ? DRINK_BY_CODE[bulk.code].naam.toLowerCase() : 'drankjes';
+  if (!window.confirm(`${bulk.naam}: ${bulk.aantal} ${drankNaam} op jouw naam toevoegen?`)) return;
+
   const me = await store.getCurrentUserId();
   const entries = await store.addMany({ personId: me, drinkCode: bulk.code, aantal: bulk.aantal });
   tapFeedback(btn);

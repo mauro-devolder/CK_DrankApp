@@ -45,7 +45,7 @@ export const MEMBERS = [
 // bv. img: 'img/pint.png'. Staat 'img' ingevuld, dan toont de app de foto i.p.v.
 // de emoji. Laat 'img' weg (of null) om de emoji te gebruiken.
 export const DRINKS = [
-  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0, img: 'img/pint.png' },
+  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#2e6b3e', order: 0, img: 'img/pint.png' },
   { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1, img: 'img/frisdrank.png' },
   { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2, img: 'img/chips.png' },
   { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3, img: 'img/water.png' },
