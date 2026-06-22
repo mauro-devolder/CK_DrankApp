@@ -356,6 +356,8 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--brand); color: var(--brand-ink); font-size: 1.05rem; font-weight: 700;
 }
 .bigbtn:active { filter: brightness(1.08); }
+.bigbtn--danger { background: var(--danger); }
+.card--danger { border-color: var(--danger); }
 
 /* ===== Instellingen ===== */
 .settings { flex: 1; padding: 20px; max-width: 560px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }

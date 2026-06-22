@@ -9,7 +9,7 @@ export const MEMBERS = [
   { id: 'm01', naam: 'Bavo',     actief: true },
   { id: 'm02', naam: 'Noor',     actief: true },
   { id: 'm03', naam: 'Danske',   actief: true },
-  { id: 'm04', naam: 'Mauro',    actief: true, host: true },
+  { id: 'm04', naam: 'Mauro',    actief: true, host: true, superadmin: true },
   { id: 'm05', naam: 'Suzanne',  actief: true },
   { id: 'm06', naam: 'Marie',    actief: true },
   { id: 'm07', naam: 'Logann',   actief: true },

@@ -45,6 +45,7 @@ function newId() {
 export async function getMembers() { return MEMBERS.filter((m) => m.actief); }
 export async function getMemberById(id) { return MEMBERS.find((m) => m.id === id) || null; }
 export async function isHost(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.host); }
+export function isSuperAdmin(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.superadmin); }
 
 // --- Identiteit op dit toestel ---------------------------------------------
 
@@ -318,6 +319,19 @@ export async function syncNow() {
   } finally {
     syncing = false;
   }
+}
+
+// Volledige reset: alle registraties én voorraad wissen (cloud + lokaal).
+export async function resetAll() {
+  if (!api.isConfigured() || !navigator.onLine) {
+    throw new Error('offline'); // reset moet de cloud raken, anders synct alles terug
+  }
+  await api.deleteAllConsumptions();
+  await api.deleteAllStock();
+  localStorage.removeItem(KEY_CONS);
+  localStorage.removeItem(KEY_STOCK);
+  localStorage.removeItem(KEY_SEEN);
+  emit();
 }
 
 export function init() {

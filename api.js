@@ -92,3 +92,17 @@ export async function fetchStock(maand) {
   if (!res.ok) throw new Error(`stock fetch ${res.status}: ${await res.text()}`);
   return res.json();
 }
+
+// --- Volledige reset (enkel super-admin) -----------------------------------
+
+const ALL = 'id=neq.00000000-0000-0000-0000-000000000000'; // matcht alle rijen
+
+export async function deleteAllConsumptions() {
+  const res = await fetch(`${REST()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
+  if (!res.ok) throw new Error(`reset cons ${res.status}: ${await res.text()}`);
+}
+
+export async function deleteAllStock() {
+  const res = await fetch(`${STOCK()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
+  if (!res.ok) throw new Error(`reset stock ${res.status}: ${await res.text()}`);
+}

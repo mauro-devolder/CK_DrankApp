@@ -336,7 +336,21 @@ async function renderAdmin() {
   await renderAdminStock();
   await renderAdminReport();
   await renderAdminLog();
+  // Reset enkel voor de super-admin (Mauro).
+  document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
+}
+
+async function doResetAll() {
+  if (!window.confirm('Alles resetten?\n\nAlle registraties én voorraad worden definitief gewist — voor iedereen, alle maanden. Dit kan niet ongedaan gemaakt worden.')) return;
+  if (!askCode('Code drankleiding om de reset te bevestigen:')) return;
+  try {
+    await store.resetAll();
+    toast('Alles is gereset');
+    await renderAdmin();
+  } catch (e) {
+    toast('Reset mislukt — internet nodig');
+  }
 }
 
 // Tellingen per persoon corrigeren.
@@ -634,6 +648,7 @@ document.getElementById('settings-switch').addEventListener('click', settingsSwi
 document.getElementById('settings-hostlogin').addEventListener('click', settingsHostLogin);
 document.getElementById('settings-hostlogout').addEventListener('click', settingsHostLogout);
 document.getElementById('edit-person').addEventListener('change', (e) => { editPersonId = e.target.value; renderEditRows(); });
+document.getElementById('reset-all').addEventListener('click', doResetAll);
 
 async function init() {
   store.init();
