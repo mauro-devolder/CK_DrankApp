@@ -17,5 +17,5 @@ export function isConfigured() {
 
 // Gedeelde pincode voor het beheerscherm (voorraad, export, verwijderverzoeken).
 // Geen echte beveiliging — gewoon een drempel. Wijzig dit naar wens.
-export const HOST_PIN = '1234';
+export const HOST_PIN = '8888';
 
