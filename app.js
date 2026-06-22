@@ -32,6 +32,8 @@ function toast(msg) {
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
   'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 
+const HOST_BADGE = '<span class="host-badge">drankleiding</span>';
+
 // Compacte telling zoals in de export: "3p 1f 2s" (vaste volgorde, nul weg).
 function formatCounts(counts) {
   return DRINKS.filter((d) => counts[d.code]).map((d) => `${counts[d.code]}${d.code}`).join(' ');
@@ -58,7 +60,7 @@ async function renderOnboarding() {
       const li = document.createElement('li');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = m.naam;
+      btn.innerHTML = `<span>${m.naam}</span>` + (m.host ? HOST_BADGE : '');
       btn.addEventListener('click', () => chooseMember(m.id));
       li.appendChild(btn);
       list.appendChild(li);
@@ -149,12 +151,24 @@ async function settingsHostLogout() {
   await renderMain();
 }
 
+const TAP_GUARD_MS = 350; // dubbeltik-rem: zelfde knop niet 2x binnen deze tijd
+const lastTap = {};
+
+function tapFeedback(btn) {
+  if (navigator.vibrate) navigator.vibrate(25); // trilling (Android; iOS negeert dit)
+  btn.classList.remove('flash');
+  void btn.offsetWidth; // herstart animatie
+  btn.classList.add('flash');
+}
+
 async function registerDrink(drink, btn) {
+  const now = Date.now();
+  if (now - (lastTap[drink.code] || 0) < TAP_GUARD_MS) return; // per ongeluk dubbel? negeren
+  lastTap[drink.code] = now;
+
   const me = await store.getCurrentUserId();
   const entry = await store.addConsumption({ personId: me, drinkCode: drink.code });
-  btn.classList.remove('flash');
-  void btn.offsetWidth;
-  btn.classList.add('flash');
+  tapFeedback(btn);
   showUndo(`✓ +1 ${drink.naam}`, entry.id);
 }
 
@@ -243,7 +257,7 @@ async function renderOthers() {
     if (m.id === meId) continue; // voor jezelf gebruik je het hoofdscherm
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = `<span class="tick">✓</span><span>${m.naam}</span>`;
+    b.innerHTML = `<span class="tick">✓</span><span>${m.naam}</span>` + (m.host ? HOST_BADGE : '');
     b.addEventListener('click', () => {
       if (othersPeople.has(m.id)) { othersPeople.delete(m.id); b.classList.remove('is-picked'); }
       else { othersPeople.add(m.id); b.classList.add('is-picked'); }
@@ -361,7 +375,7 @@ async function renderAdminPersonEdit() {
   sel.innerHTML = '';
   for (const m of members) {
     const o = document.createElement('option');
-    o.value = m.id; o.textContent = m.naam;
+    o.value = m.id; o.textContent = m.naam + (m.host ? ' · drankleiding' : '');
     sel.appendChild(o);
   }
   editPersonId = (prev && members.some((m) => m.id === prev)) ? prev : (members[0] && members[0].id);

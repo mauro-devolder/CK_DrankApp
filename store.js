@@ -292,19 +292,21 @@ export async function syncNow() {
   if (syncing || !api.isConfigured() || !navigator.onLine) return;
   syncing = true;
   try {
-    let all = loadCons();
-
     // 1) Pushen wat nog niet gesynct is (adds, verwijderingen, statuswijzigingen).
-    const toPush = all.filter((c) => !c.synced);
-    if (toPush.length) {
-      await api.pushConsumptions(toPush);
-      for (const c of toPush) c.synced = true;
-    }
+    const toPush = loadCons().filter((c) => !c.synced);
+    if (toPush.length) await api.pushConsumptions(toPush);
+    const pushedIds = new Set(toPush.map((c) => c.id));
 
-    // 2) Ophalen wat anderen deze maand deden + statussen van anderen overnemen.
+    // 2) Ophalen wat anderen deze maand deden.
     const { from, to } = monthBounds();
     const server = await api.fetchRange(from, to);
+
+    // 3) Opnieuw inladen vóór het wegschrijven: zo behouden we registraties die
+    //    TIJDENS de sync zijn toegevoegd (anders gaat een tik tijdens het
+    //    syncen verloren — kritisch bij slecht bereik in de kelder).
+    const all = loadCons();
     const byId = new Map(all.map((c) => [c.id, c]));
+    for (const c of all) if (pushedIds.has(c.id)) c.synced = true;
     for (const row of server) {
       const local = byId.get(row.id);
       if (!local) { all.push(row); byId.set(row.id, row); }
