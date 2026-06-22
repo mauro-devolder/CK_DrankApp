@@ -1,9 +1,10 @@
 // Minimale service worker: app-shell cachen zodat de app ook zonder bereik
 // opent. Bewust simpel gehouden voor de MVP.
-const CACHE = 'drank-v5';
+const CACHE = 'drank-v6';
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'app.js', 'store.js', 'members.js',
-  'api.js', 'config.js', 'manifest.json', 'icon.svg',
+  'api.js', 'config.js', 'manifest.json',
+  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
