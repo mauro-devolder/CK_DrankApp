@@ -1,4 +1,4 @@
-# Chiro Drankjes
+# DrankApp
 
 Drankjesverbruik bijhouden in de Chiro. Iedereen op zijn eigen telefoon, gedeelde
 teller in de cloud, werkt offline. Plain HTML/CSS/JS, geen build-stap, geen dependencies.
