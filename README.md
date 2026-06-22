@@ -3,6 +3,19 @@
 Drankjesverbruik bijhouden in de Chiro. Iedereen op zijn eigen telefoon, gedeelde
 teller in de cloud, werkt offline. Plain HTML/CSS/JS, geen build-stap, geen dependencies.
 
+**Live:** https://mauro-devolder.github.io/CK_DrankApp/
+**Installeren op je telefoon:** open de link → deel-icoon → *Zet op beginscherm*.
+
+## Updaten / opnieuw uitrollen
+
+Wijzig een bestand, dan:
+
+```bash
+git add -A && git commit -m "..." && git push
+```
+
+GitHub Pages bouwt automatisch opnieuw (±1 min) en de live-site is bijgewerkt.
+
 ## Lokaal draaien
 
 Een service worker / PWA werkt niet via `file://`, dus serveer de map even:
