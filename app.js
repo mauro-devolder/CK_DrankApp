@@ -117,8 +117,9 @@ async function renderMain() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'bulk-btn';
-    btn.style.background = b.kleur;
-    btn.innerHTML = `${symbolHTML(b)}<span>${b.naam} <small>+${b.aantal}</small></span>`;
+    btn.innerHTML =
+      `${symbolHTML(b)}<span class="bulk-btn__name">${b.naam}</span>` +
+      `<span class="bulk-btn__count">+${b.aantal}</span>`;
     btn.addEventListener('click', () => registerBulk(b, btn));
     bulkRow.appendChild(btn);
   }
