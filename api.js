@@ -7,6 +7,7 @@ export { isConfigured };
 
 const REST = () => `${SUPABASE_URL}/rest/v1/consumptions`;
 const STOCK = () => `${SUPABASE_URL}/rest/v1/stock_entries`;
+const CONFIG = () => `${SUPABASE_URL}/rest/v1/app_config`;
 
 function headers(extra = {}) {
   return {
@@ -105,4 +106,22 @@ export async function deleteAllConsumptions() {
 export async function deleteAllStock() {
   const res = await fetch(`${STOCK()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
   if (!res.ok) throw new Error(`reset stock ${res.status}: ${await res.text()}`);
+}
+
+// --- App-config (host-pincode + epoch) -------------------------------------
+
+export async function fetchAppConfig() {
+  const res = await fetch(`${CONFIG()}?id=eq.1&select=host_pin,host_epoch`, { headers: headers() });
+  if (!res.ok) throw new Error(`config ${res.status}`);
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+export async function updateAppConfig(hostPin, hostEpoch) {
+  const res = await fetch(`${CONFIG()}?id=eq.1`, {
+    method: 'PATCH',
+    headers: headers({ Prefer: 'return=minimal' }),
+    body: JSON.stringify({ host_pin: hostPin, host_epoch: hostEpoch }),
+  });
+  if (!res.ok) throw new Error(`config update ${res.status}: ${await res.text()}`);
 }

@@ -49,3 +49,19 @@ alter table public.stock_entries enable row level security;
 
 drop policy if exists "anon all stock" on public.stock_entries;
 create policy "anon all stock" on public.stock_entries for all to anon using (true) with check (true);
+
+-- Gedeelde app-instellingen: de host-pincode + een 'epoch' die ophoogt telkens
+-- de opper-host de pincode wijzigt. Andere toestellen verliezen dan host-modus.
+create table if not exists public.app_config (
+  id        int  primary key default 1,
+  host_pin  text not null default '8888',
+  host_epoch int not null default 1,
+  constraint app_config_single check (id = 1)
+);
+
+insert into public.app_config (id) values (1) on conflict (id) do nothing;
+
+alter table public.app_config enable row level security;
+
+drop policy if exists "anon all config" on public.app_config;
+create policy "anon all config" on public.app_config for all to anon using (true) with check (true);

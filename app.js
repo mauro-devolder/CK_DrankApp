@@ -1,8 +1,14 @@
 // Controller: schermwissels + alle interacties. Alle opslag loopt via store.js.
 
-import { DRINKS, DRINK_BY_CODE } from './members.js';
-import { HOST_PIN } from './config.js';
+import { DRINKS, DRINK_BY_CODE, BULK } from './members.js';
 import * as store from './store.js';
+
+// Symbool voor een drank/knop: eigen foto als 'img' is ingevuld, anders de emoji.
+function symbolHTML(item) {
+  return item.img
+    ? `<img class="drink-sym" src="${item.img}" alt="">`
+    : `<span class="drink-btn__emoji">${item.emoji}</span>`;
+}
 
 const UNDO_MS = 60_000; // venster om zelf te corrigeren zonder host
 
@@ -99,9 +105,22 @@ async function renderMain() {
     btn.className = 'drink-btn';
     btn.style.background = d.kleur;
     btn.dataset.code = d.code;
-    btn.innerHTML = `<span class="drink-btn__emoji">${d.emoji}</span><span>${d.naam}</span>`;
+    btn.innerHTML = `${symbolHTML(d)}<span>${d.naam}</span>`;
     btn.addEventListener('click', () => registerDrink(d, btn));
     grid.appendChild(btn);
+  }
+
+  // Bak / halve bak: snelknoppen die meteen meerdere pinten op jezelf zetten.
+  const bulkRow = document.getElementById('bulk-row');
+  bulkRow.innerHTML = '';
+  for (const b of BULK) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bulk-btn';
+    btn.style.background = b.kleur;
+    btn.innerHTML = `${symbolHTML(b)}<span>${b.naam} <small>+${b.aantal}</small></span>`;
+    btn.addEventListener('click', () => registerBulk(b, btn));
+    bulkRow.appendChild(btn);
   }
 
   hideUndo();
@@ -118,18 +137,38 @@ function refreshGear() {
 // --- Instellingen (naam tikken) --------------------------------------------
 
 async function renderSettings() {
-  const me = await store.getMemberById(await store.getCurrentUserId());
+  const meId = await store.getCurrentUserId();
+  const me = await store.getMemberById(meId);
   document.getElementById('settings-name').textContent = me ? me.naam : '—';
   const host = store.isHostUnlocked();
   document.getElementById('settings-hostlogin').hidden = host;
   document.getElementById('settings-hostlogout').hidden = !host;
+  // Pincode wijzigen: enkel de opper-host (Mauro), en enkel in host-modus.
+  const canChangePin = host && store.isSuperAdmin(meId);
+  document.getElementById('settings-changepin').hidden = !canChangePin;
+  document.getElementById('settings-changepin-hint').hidden = !canChangePin;
   show('settings');
+}
+
+async function settingsChangePin() {
+  if (!askCode('Huidige code ter bevestiging:')) return;
+  const np = window.prompt('Nieuwe pincode (3 tot 8 cijfers):');
+  if (np == null) return;
+  const clean = np.trim();
+  if (!/^\d{3,8}$/.test(clean)) { toast('Ongeldige pincode'); return; }
+  try {
+    await store.changeHostPin(clean);
+    toast('Pincode gewijzigd — andere toestellen uitgelogd');
+    await renderMain();
+  } catch (e) {
+    toast('Wijzigen mislukt — internet nodig');
+  }
 }
 
 function askCode(reden) {
   const pin = window.prompt(reden);
   if (pin == null) return false;
-  if (pin !== HOST_PIN) { toast('Foute code'); return false; }
+  if (pin !== store.currentPin()) { toast('Foute code'); return false; }
   return true;
 }
 
@@ -169,15 +208,28 @@ async function registerDrink(drink, btn) {
   const me = await store.getCurrentUserId();
   const entry = await store.addConsumption({ personId: me, drinkCode: drink.code });
   tapFeedback(btn);
-  showUndo(`✓ +1 ${drink.naam}`, entry.id);
+  showUndo(`✓ +1 ${drink.naam}`, [entry.id]);
 }
 
-function showUndo(text, consumptionId) {
+// Bak (+24) / halve bak (+12): meteen meerdere pinten op jezelf.
+async function registerBulk(bulk, btn) {
+  const now = Date.now();
+  if (now - (lastTap[bulk.id] || 0) < TAP_GUARD_MS) return;
+  lastTap[bulk.id] = now;
+
+  const me = await store.getCurrentUserId();
+  const entries = await store.addMany({ personId: me, drinkCode: bulk.code, aantal: bulk.aantal });
+  tapFeedback(btn);
+  const naam = DRINK_BY_CODE[bulk.code] ? DRINK_BY_CODE[bulk.code].naam : 'drankje';
+  showUndo(`✓ +${bulk.aantal} ${naam} (${bulk.naam.toLowerCase()})`, entries.map((e) => e.id));
+}
+
+function showUndo(text, ids) {
   const bar = document.getElementById('undo-bar');
   document.getElementById('undo-text').textContent = text;
   bar.hidden = false;
   if (lastAction?.timer) clearTimeout(lastAction.timer);
-  lastAction = { id: consumptionId, timer: setTimeout(hideUndo, UNDO_MS) };
+  lastAction = { ids, timer: setTimeout(hideUndo, UNDO_MS) };
 }
 
 function hideUndo() {
@@ -188,7 +240,7 @@ function hideUndo() {
 
 async function undoLast() {
   if (!lastAction) return;
-  await store.removeConsumption(lastAction.id);
+  for (const id of lastAction.ids) await store.removeConsumption(id);
   hideUndo();
   toast('Ongedaan gemaakt');
 }
@@ -661,6 +713,7 @@ document.getElementById('settings-back').addEventListener('click', renderMain);
 document.getElementById('settings-switch').addEventListener('click', settingsSwitch);
 document.getElementById('settings-hostlogin').addEventListener('click', settingsHostLogin);
 document.getElementById('settings-hostlogout').addEventListener('click', settingsHostLogout);
+document.getElementById('settings-changepin').addEventListener('click', settingsChangePin);
 document.getElementById('edit-person').addEventListener('change', (e) => { editPersonId = e.target.value; renderEditRows(); });
 document.getElementById('reset-all').addEventListener('click', doResetAll);
 

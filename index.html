@@ -39,7 +39,8 @@
 
     <main class="drinks">
       <div id="drink-grid" class="drink-grid"></div>
-      <button id="go-others" class="others-btn" type="button">＋ Voor anderen (rondje)</button>
+      <div id="bulk-row" class="bulk-row"></div>
+      <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
     </main>
 
     <!-- Bevestiging + ongedaan maken (60s) -->
@@ -62,6 +63,8 @@
       <button id="settings-hostlogin" class="bigbtn" type="button">Inloggen als drankleiding</button>
       <button id="settings-hostlogout" class="bigbtn bigbtn--ghost" type="button" hidden>Drankleiding-modus uitschakelen</button>
       <p class="settings__hint">Wisselen van persoon en inloggen als drankleiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
+      <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (opper-host)</button>
+      <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de drankleiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
     </main>
   </section>
 
@@ -118,10 +121,12 @@
       </section>
 
       <section class="card">
-        <h3 class="card__title">Aanpassen per persoon</h3>
-        <p class="card__hint">Corrigeer hoeveel iemand heeft. Wijzigingen tellen meteen mee.</p>
-        <select id="edit-person" class="select"></select>
-        <div id="edit-rows" class="edit-rows"></div>
+        <details id="edit-details">
+          <summary class="card__collapse">Aanpassen per persoon</summary>
+          <p class="card__hint">Corrigeer hoeveel iemand heeft. Wijzigingen tellen meteen mee.</p>
+          <select id="edit-person" class="select"></select>
+          <div id="edit-rows" class="edit-rows"></div>
+        </details>
       </section>
 
       <section class="card">

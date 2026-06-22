@@ -10,6 +10,7 @@
 //  - Zonder Supabase-config draait alles lokaal.
 
 import { MEMBERS } from './members.js';
+import { HOST_PIN } from './config.js';
 import * as api from './api.js';
 
 export const isConfigured = api.isConfigured;
@@ -19,6 +20,9 @@ const KEY_CONS = 'drank.consumptions';
 const KEY_SEEN = 'drank.seenNotifs';
 const KEY_STOCK = 'drank.stock';
 const KEY_HOST = 'drank.hostUnlocked';
+const KEY_PIN = 'drank.hostPin';            // gecachte server-pincode
+const KEY_EPOCH_SERVER = 'drank.epochServer'; // laatst gekende server-epoch
+const KEY_HOST_EPOCH = 'drank.hostEpoch';   // epoch waarop dit toestel host werd
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }
@@ -55,8 +59,26 @@ export async function clearCurrentUser() { localStorage.removeItem(KEY_USER); }
 
 // Host-modus blijft op dit toestel bewaard nadat de code 1x correct is ingegeven.
 export function isHostUnlocked() { return load(KEY_HOST, false) === true; }
-export function unlockHost() { save(KEY_HOST, true); emit(); }
-export function lockHost() { save(KEY_HOST, false); emit(); }
+export function unlockHost() {
+  save(KEY_HOST, true);
+  save(KEY_HOST_EPOCH, load(KEY_EPOCH_SERVER, 1)); // onthoud op welke epoch we host werden
+  emit();
+}
+export function lockHost() { save(KEY_HOST, false); localStorage.removeItem(KEY_HOST_EPOCH); emit(); }
+
+// Huidige host-pincode (server-waarde indien gekend, anders de standaard).
+export function currentPin() { return load(KEY_PIN, HOST_PIN); }
+
+// Opper-host wijzigt de pincode: epoch +1 -> alle andere toestellen verliezen host.
+export async function changeHostPin(newPin) {
+  if (!api.isConfigured() || !navigator.onLine) throw new Error('offline');
+  const newEpoch = load(KEY_EPOCH_SERVER, 1) + 1;
+  await api.updateAppConfig(newPin, newEpoch);
+  save(KEY_PIN, newPin);
+  save(KEY_EPOCH_SERVER, newEpoch);
+  save(KEY_HOST_EPOCH, newEpoch); // dit toestel (opper-host) blijft host
+  emit();
+}
 
 // --- Registraties ----------------------------------------------------------
 
@@ -78,6 +100,23 @@ export async function addConsumption({ personId, drinkCode, registeredBy }) {
   emit();
   scheduleSync();
   return entry;
+}
+
+// Meerdere ineens (bak = 24 pinten, halve bak = 12). Eén keer opslaan/synchroniseren.
+export async function addMany({ personId, drinkCode, registeredBy, aantal }) {
+  const all = loadCons();
+  const entries = [];
+  for (let i = 0; i < aantal; i++) {
+    const e = {
+      id: newId(), personId, registeredBy: registeredBy || personId,
+      drinkCode, tijdstip: new Date().toISOString(), status: 'actief', synced: false,
+    };
+    all.push(e); entries.push(e);
+  }
+  saveCons(all);
+  emit();
+  scheduleSync();
+  return entries;
 }
 
 function setStatus(id, status) {
@@ -315,12 +354,30 @@ export async function syncNow() {
 
     saveCons(all);
     await syncStock(monthKey());
+    await syncConfig();
     emit();
   } catch (err) {
     console.warn('sync mislukt, opnieuw bij volgende poging:', err.message);
   } finally {
     syncing = false;
   }
+}
+
+// Haal de gedeelde pincode + epoch op. Trek host-modus in als de opper-host de
+// pincode wijzigde (epoch veranderde), behalve op het toestel van de opper-host.
+async function syncConfig() {
+  try {
+    const cfg = await api.fetchAppConfig();
+    if (!cfg) return;
+    save(KEY_PIN, cfg.host_pin);
+    save(KEY_EPOCH_SERVER, cfg.host_epoch);
+    if (!isHostUnlocked()) return;
+    const me = curUser();
+    if (isSuperAdmin(me)) { save(KEY_HOST_EPOCH, cfg.host_epoch); return; } // opper-host blijft
+    const localEpoch = load(KEY_HOST_EPOCH, null);
+    if (localEpoch == null) { save(KEY_HOST_EPOCH, cfg.host_epoch); return; } // bestaande host meenemen
+    if (localEpoch !== cfg.host_epoch) lockHost(); // pincode gewijzigd -> uitloggen als host
+  } catch { /* tabel app_config bestaat (nog) niet -> stil overslaan */ }
 }
 
 // Volledige reset: alle registraties én voorraad wissen (cloud + lokaal).

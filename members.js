@@ -40,14 +40,25 @@ export const MEMBERS = [
 
 // De 7 drankjes/types. De 'code' is wat in de export verschijnt (1p, 1f, ...).
 // 'order' bepaalt de vaste volgorde in de exportregel: p f c w s k d.
+//
+// EIGEN FOTO i.p.v. emoji? Zet een afbeelding in de map 'img/' en vul 'img' in,
+// bv. img: 'img/pint.png'. Staat 'img' ingevuld, dan toont de app de foto i.p.v.
+// de emoji. Laat 'img' weg (of null) om de emoji te gebruiken.
 export const DRINKS = [
-  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0 },
-  { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1 },
-  { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2 },
-  { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3 },
-  { code: 's', naam: 'Sterk bier', emoji: '🍻', kleur: '#9a6a2f', order: 4 },
-  { code: 'k', naam: 'Kriek',      emoji: '🍒', kleur: '#c0314f', order: 5 },
-  { code: 'd', naam: 'Desperados', emoji: '🌵', kleur: '#5aa84a', order: 6 },
+  { code: 'p', naam: 'Pint',       emoji: '🍺', kleur: '#d9a441', order: 0, img: null },
+  { code: 'f', naam: 'Frisdrank',  emoji: '🥤', kleur: '#e8553a', order: 1, img: null },
+  { code: 'c', naam: 'Chips',      emoji: '🥔', kleur: '#e0b020', order: 2, img: null },
+  { code: 'w', naam: 'Water',      emoji: '💧', kleur: '#3aa0e8', order: 3, img: null },
+  { code: 's', naam: 'Sterk bier', emoji: '🍻', kleur: '#9a6a2f', order: 4, img: null },
+  { code: 'k', naam: 'Kriek',      emoji: '🍒', kleur: '#c0314f', order: 5, img: null },
+  { code: 'd', naam: 'Desperados', emoji: '🌵', kleur: '#5aa84a', order: 6, img: null },
 ];
 
 export const DRINK_BY_CODE = Object.fromEntries(DRINKS.map((d) => [d.code, d]));
+
+// Snelknoppen die in één tik meerdere pinten op jezelf zetten.
+// Ook hier kan 'img' een eigen foto zijn (bv. img: 'img/bak.png').
+export const BULK = [
+  { id: 'halve-bak', naam: 'Halve bak', code: 'p', aantal: 12, emoji: '🍺', kleur: '#b8863a', img: null },
+  { id: 'bak',       naam: 'Bak',       code: 'p', aantal: 24, emoji: '📦', kleur: '#8a5a22', img: null },
+];
