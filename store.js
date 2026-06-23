@@ -46,7 +46,20 @@ function newId() {
 
 // --- Leden -----------------------------------------------------------------
 
-export async function getMembers() { return MEMBERS.filter((m) => m.actief); }
+// In welke modus draait deze build: 'leiding' (standaard) of 'aspi'. Het
+// HTML-instappunt van de aspi-app zet window.APP_GROUP = 'aspi'; de gewone
+// leiding-app laat het leeg en valt terug op 'leiding'.
+export function currentGroup() {
+  return (typeof window !== 'undefined' && window.APP_GROUP) || 'leiding';
+}
+
+// Enkel de leden van de groep van déze app. Naam-opzoeking (memberName,
+// getMemberById) blijft over álle groepen werken, zodat registered_by altijd
+// klopt — enkel de zichtbare lijsten zijn per groep gescheiden.
+export async function getMembers() {
+  const groep = currentGroup();
+  return MEMBERS.filter((m) => m.actief && m.groep === groep);
+}
 export async function getMemberById(id) { return MEMBERS.find((m) => m.id === id) || null; }
 export async function isHost(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.host); }
 export function isSuperAdmin(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.superadmin); }
