@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f6f4a" />
   <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <title>Aspi Drankjes</title>
   <link rel="stylesheet" href="../styles.css" />
   <!-- Aspi-modus: dezelfde code als de leiding-app, maar groep 'aspi'.
@@ -22,6 +22,7 @@
       <input id="member-search" class="search" type="search"
              placeholder="Zoek je naam…" autocomplete="off" />
       <ul id="member-list" class="member-list"></ul>
+      <button id="login-aspileiding" class="onboarding__leiding" type="button">Inloggen als aspileiding</button>
     </div>
   </section>
 
@@ -46,6 +47,7 @@
       <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
       <div id="bulk-head" class="bulk-head">Andere</div>
       <div id="bulk-row" class="bulk-row"></div>
+      <p id="host-hint" class="host-hint" hidden>Je bent ingelogd als aspileiding. Beheer de schulden via ⚙️ rechtsboven.</p>
     </main>
 
     <!-- Bevestiging + ongedaan maken (60s) -->
@@ -70,7 +72,8 @@
       <p class="settings__hint">Wisselen van persoon en inloggen als aspileiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
       <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (opper-host)</button>
       <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de aspileiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
-      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode (7777) wijzigen</button>
+      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode wijzigen (opper-host)</button>
+      <p id="settings-codes" class="settings__codes" hidden></p>
     </main>
   </section>
 
@@ -174,8 +177,11 @@
 
       <section class="card">
         <details open>
-          <summary id="export-summary" class="card__collapse">Aspi-afrekening</summary>
-          <ul id="admin-overview" class="overview-list"></ul>
+          <summary id="export-summary" class="card__collapse">Openstaande schuld</summary>
+          <p class="card__hint">De schuld telt cumulatief door tot je ze int en op 0 zet. <b>Afrekenen</b> stuurt een verzoek naar de opper-host; pas na zijn goedkeuring telt die aspi weer van 0.</p>
+          <ul id="aspi-debts" class="debt-list"></ul>
+          <p id="aspi-debts-empty" class="overview-empty" hidden>Niemand heeft een openstaande schuld.</p>
+          <ul id="admin-overview" class="overview-list" hidden></ul>
           <p id="admin-zwerf" class="zwerf-line" hidden></p>
           <textarea id="export-text" class="export" readonly rows="8"></textarea>
           <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>

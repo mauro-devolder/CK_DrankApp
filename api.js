@@ -8,6 +8,7 @@ export { isConfigured };
 const REST = () => `${SUPABASE_URL}/rest/v1/consumptions`;
 const STOCK = () => `${SUPABASE_URL}/rest/v1/stock_entries`;
 const CONFIG = () => `${SUPABASE_URL}/rest/v1/app_config`;
+const SETTLE = () => `${SUPABASE_URL}/rest/v1/aspi_settlements`;
 
 function headers(extra = {}) {
   return {
@@ -76,6 +77,62 @@ export async function fetchRange(fromISO, toISO) {
   return (await res.json()).map(fromRow);
 }
 
+// Alle ACTIEVE registraties van een set personen (de aspi's), zónder maandgrens.
+// Nodig voor de cumulatieve aspischuld, die over meerdere maanden doorloopt.
+export async function fetchAspiConsumptions(ids) {
+  if (!ids || !ids.length) return [];
+  const list = ids.map(encodeURIComponent).join(',');
+  const q =
+    `?select=id,person_id,registered_by,drink_code,tijdstip,status` +
+    `&person_id=in.(${list})` +
+    `&status=eq.actief`;
+  const res = await fetch(REST() + q, { headers: headers() });
+  if (!res.ok) throw new Error(`aspi cons ${res.status}: ${await res.text()}`);
+  return (await res.json()).map(fromRow);
+}
+
+// --- Aspi-afrekeningen (schuld op 0, met goedkeuring opper-host) ------------
+
+function settleToRow(s) {
+  return {
+    id: s.id,
+    person_id: s.personId,
+    status: s.status,
+    requested_at: s.requestedAt,
+    effective_at: s.effectiveAt ?? null,
+    resolved_at: s.resolvedAt ?? null,
+  };
+}
+function settleFromRow(r) {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    status: r.status,
+    requestedAt: r.requested_at,
+    effectiveAt: r.effective_at,
+    resolvedAt: r.resolved_at,
+    synced: true,
+  };
+}
+
+export async function fetchSettlements() {
+  const q = `?select=id,person_id,status,requested_at,effective_at,resolved_at`;
+  const res = await fetch(SETTLE() + q, { headers: headers() });
+  if (!res.ok) throw new Error(`settlements ${res.status}: ${await res.text()}`);
+  return (await res.json()).map(settleFromRow);
+}
+
+// Upsert (merge op id) — idempotent, zoals de consumptions.
+export async function pushSettlements(items) {
+  if (!items.length) return;
+  const res = await fetch(SETTLE(), {
+    method: 'POST',
+    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+    body: JSON.stringify(items.map(settleToRow)),
+  });
+  if (!res.ok) throw new Error(`settle push ${res.status}: ${await res.text()}`);
+}
+
 // --- Voorraad --------------------------------------------------------------
 
 export async function upsertStock({ drinkCode, type, aantal, maand }) {
@@ -106,6 +163,11 @@ export async function deleteAllConsumptions() {
 export async function deleteAllStock() {
   const res = await fetch(`${STOCK()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
   if (!res.ok) throw new Error(`reset stock ${res.status}: ${await res.text()}`);
+}
+
+export async function deleteAllSettlements() {
+  const res = await fetch(`${SETTLE()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
+  if (!res.ok) throw new Error(`reset settle ${res.status}: ${await res.text()}`);
 }
 
 // --- App-config (host-pincode + epoch) -------------------------------------

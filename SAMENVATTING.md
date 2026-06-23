@@ -74,13 +74,28 @@ bak/halve bak, productfoto's, inklapbaar opgeschoond beheer, log met uren + door
 verwijderingen, geen dubbeltik-zoom, en de **volledige aspi-app** (eigen instappunt/icoon-
 plek, code 7777, aspi-export, rollen, groep-scheiding zonder lekkage).
 
+## 5b. Aspischulden (cumulatief, met goedkeuring)
+
+De aspischuld telt **cumulatief** door over de maanden (ze worden niet elke maand betaald).
+Afrekenen wist géén registraties — het legt een **watermerk** (`aspi_settlements.effective_at`),
+zodat de maand-zwerf van de drankleiding ongemoeid blijft. De openstaande schuld = de actieve
+aspi-drankjes ná het laatste goedgekeurde watermerk. De **aspileiding** vraagt per aspi een
+afrekening aan (knop in de aspi-beheer); dat verschijnt als **goedkeuringsverzoek** bij de
+opper-host (Mauro) in de leiding-app, mét schuld-snapshot. Pas na zijn **Goedkeuren** telt die
+aspi weer van 0. Aspileiding logt in via de knop **"Inloggen als aspileiding"** op het keuze-
+scherm (code 7777); dat is een `leidingOnly`-identiteit (`as1`) die nergens in de aspi-lijsten/
+overzichten/export opduikt en op het hoofdscherm enkel beheer toont.
+
 ## 6. Openstaande punten
 
-1. **`supabase/schema.sql` opnieuw draaien** in Supabase (voor `app_config`-pincode + de
-   nieuwe `aspi_pin`/`aspi_epoch`-kolommen). Tot dan werken 8888/7777 via de config-terugval;
-   enkel het *wijzigen* via de DB heeft de kolommen nodig.
-2. **Apart aspi-icoon** — de aspi-app gebruikt nu hetzelfde icoon als de leiding-app.
-   Mauro kan er één aanleveren → in `/aspi/` zetten + in `aspi/manifest.json` verwijzen.
+1. **`supabase/schema.sql` opnieuw draaien** in Supabase (voor `app_config`-pincode, de
+   `aspi_pin`/`aspi_epoch`-kolommen **én de nieuwe tabel `aspi_settlements`**). Tot dan werken
+   8888/7777 via de config-terugval en faalt het afrekenen-synchroniseren stil (lokaal werkt
+   het wel, maar propageert pas zodra de tabel bestaat).
+2. **Apart aspi-icoon** — er staat nu een gegenereerd icoon in `/aspi/` (zelfde beeld + subtiel
+   "CK-aspi" onderaan), verwezen vanuit `aspi/manifest.json`/`aspi/index.html`/`aspi/sw.js`.
+   Mauro kan `aspi/icon-192.png` / `aspi/icon-512.png` / `aspi/apple-touch-icon.png` vervangen
+   door een eigen ontwerp als hij iets mooiers wil.
 3. **Export-hoofdletters** — de export schrijft `Mauro 3p`; het ontwerpdoc-voorbeeld was
    `mauro 3p`. Te wijzigen als de externe automatisering op kleine letters matcht.
 4. **Echte keldertest** (vliegtuigmodus) vóór de eerste echte avond blijft aanbevolen.

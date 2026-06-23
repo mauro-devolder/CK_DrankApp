@@ -43,6 +43,7 @@
       <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
       <div id="bulk-head" class="bulk-head">Andere</div>
       <div id="bulk-row" class="bulk-row"></div>
+      <p id="host-hint" class="host-hint" hidden>Je bent ingelogd als aspileiding. Beheer de schulden via ⚙️ rechtsboven.</p>
     </main>
 
     <!-- Bevestiging + ongedaan maken (60s) -->
@@ -67,7 +68,8 @@
       <p class="settings__hint">Wisselen van persoon en inloggen als drankleiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
       <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (opper-host)</button>
       <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de drankleiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
-      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode (7777) wijzigen</button>
+      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode wijzigen (opper-host)</button>
+      <p id="settings-codes" class="settings__codes" hidden></p>
     </main>
   </section>
 
@@ -175,6 +177,12 @@
           <textarea id="export-text" class="export" readonly rows="8"></textarea>
           <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
         </details>
+      </section>
+
+      <section id="admin-aspi-settlements-card" class="card" hidden>
+        <h3 class="card__title">Aspi-afrekeningen goedkeuren</h3>
+        <p class="card__hint">De aspileiding heeft een schuld geïnd en vraagt om die op 0 te zetten. Keur enkel goed als het geld effectief binnen is — daarna telt die aspi weer van 0.</p>
+        <ul id="admin-aspi-settlements" class="overview-list"></ul>
       </section>
 
       <section id="admin-reset-card" class="card card--danger" hidden>

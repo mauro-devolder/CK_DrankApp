@@ -70,3 +70,24 @@ alter table public.app_config enable row level security;
 
 drop policy if exists "anon all config" on public.app_config;
 create policy "anon all config" on public.app_config for all to anon using (true) with check (true);
+
+-- Aspi-afrekeningen: de aspischuld telt cumulatief door over de maanden en wordt
+-- pas op 0 gezet via een afrekening die de opper-host goedkeurt. Een goedgekeurde
+-- afrekening zet GEEN registraties op 'verwijderd' (anders zou de maand-zwerf van
+-- de drankleiding mee verschuiven); ze legt enkel een watermerk (effective_at).
+-- De openstaande schuld van een aspi = zijn actieve drankjes na dat watermerk.
+create table if not exists public.aspi_settlements (
+  id           uuid        primary key,            -- door de telefoon gegenereerd
+  person_id    text        not null,               -- welke aspi
+  status       text        not null default 'pending', -- pending | approved | rejected
+  requested_at timestamptz not null default now(),
+  effective_at timestamptz,                         -- bij goedkeuring = requested_at
+  resolved_at  timestamptz
+);
+
+create index if not exists aspi_settlements_person_idx on public.aspi_settlements (person_id);
+
+alter table public.aspi_settlements enable row level security;
+
+drop policy if exists "anon all settlements" on public.aspi_settlements;
+create policy "anon all settlements" on public.aspi_settlements for all to anon using (true) with check (true);

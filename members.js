@@ -48,6 +48,13 @@ export const MEMBERS = [
   { id: 'a04', naam: 'Marlon',   actief: true, groep: 'aspi' },
   { id: 'a05', naam: 'Yoko',     actief: true, groep: 'aspi' },
   { id: 'a06', naam: 'Nanou',    actief: true, groep: 'aspi' },
+
+  // Aspileiding-identiteit voor de aspi-app. 'leidingOnly: true' = dit is een
+  // beheer-identiteit, geen drinkende aspi: hij verschijnt NIET in de keuze-
+  // lijst, het overzicht, de export of de schulden (getMembers filtert hem weg),
+  // maar getMemberById/memberName blijven werken. Inloggen gebeurt via de knop
+  // "Inloggen als aspileiding" op het keuzescherm (vraagt de aspi-code 7777).
+  { id: 'as1', naam: 'Aspileiding', actief: true, groep: 'aspi', host: true, leidingOnly: true },
 ];
 
 // De 7 drankjes/types. De 'code' is wat in de export verschijnt (1p, 1f, ...).

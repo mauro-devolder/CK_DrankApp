@@ -526,3 +526,38 @@ details[open] > .log-sum::before { transform: rotate(90deg); }
   box-shadow: var(--shadow);
   z-index: 50;
 }
+
+/* ===== Aspileiding-login (keuzescherm) ===== */
+.onboarding__leiding {
+  width: 100%; margin-top: 18px; padding: 14px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: 1rem; font-weight: 700;
+}
+.onboarding__leiding:active { background: var(--line); }
+
+/* Hint op het hoofdscherm voor de aspileiding (beheer-identiteit). */
+.host-hint { color: var(--muted); text-align: center; margin: 24px 16px; line-height: 1.5; }
+
+/* Codes die enkel de opper-host onder de pincode-knoppen ziet. */
+.settings__codes {
+  color: var(--muted); font-size: 0.9rem; margin-top: 6px;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.3px;
+}
+
+/* ===== Openstaande aspi-schuld ===== */
+.debt-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.debt-row {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow);
+}
+.debt-row__head { display: flex; align-items: baseline; gap: 8px; }
+.debt-row__name { flex: 1; font-weight: 700; }
+.debt-row__counts { color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+.debt-row__btn {
+  align-self: flex-start;
+  background: none; border: 1.5px solid var(--brand); color: var(--brand);
+  border-radius: 12px; padding: 8px 14px; font-weight: 700;
+}
+.debt-row__pending { color: var(--muted); font-style: italic; }

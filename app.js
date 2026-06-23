@@ -95,7 +95,23 @@ async function renderOnboarding() {
   search.value = '';
   search.oninput = () => draw(search.value);
   draw();
+
+  // Enkel in de aspi-app: inloggen als aspileiding (beheer-identiteit, code 7777).
+  const leidingBtn = document.getElementById('login-aspileiding');
+  if (leidingBtn) leidingBtn.onclick = loginAspileiding;
+
   show('onboarding');
+}
+
+// 'as1' = de aspileiding-identiteit uit members.js (leidingOnly).
+async function loginAspileiding() {
+  const pin = window.prompt('Code aspileiding:');
+  if (pin == null) return;
+  if (pin !== store.currentPin()) { toast('Foute code'); return; }
+  await store.setCurrentUserId('as1');
+  store.unlockHost();
+  toast('Ingelogd als aspileiding');
+  await renderMain();
 }
 
 async function chooseMember(id) {
@@ -116,31 +132,44 @@ async function renderMain() {
 
   document.getElementById('current-name').textContent = me.naam;
 
-  const grid = document.getElementById('drink-grid');
-  grid.innerHTML = '';
-  for (const d of DRINKS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'drink-btn';
-    btn.style.background = d.kleur;
-    btn.dataset.code = d.code;
-    btn.innerHTML = `${symbolHTML(d)}<span>${d.naam}</span>`;
-    btn.addEventListener('click', () => registerDrink(d, btn));
-    grid.appendChild(btn);
-  }
+  // De aspileiding is een beheer-identiteit: geen persoonlijke drankknoppen,
+  // postvak of mijn-log — enkel beheer (via ⚙️) en het overzicht.
+  const hostOnly = !!me.leidingOnly;
+  document.getElementById('drink-grid').hidden = hostOnly;
+  document.getElementById('go-others').hidden = hostOnly;
+  document.getElementById('bulk-head').hidden = hostOnly;
+  document.getElementById('bulk-row').hidden = hostOnly;
+  document.getElementById('go-postvak').hidden = hostOnly;
+  document.getElementById('go-mylog').hidden = hostOnly;
+  document.getElementById('host-hint').hidden = !hostOnly;
 
-  // Bak / halve bak: snelknoppen die meteen meerdere pinten op jezelf zetten.
-  const bulkRow = document.getElementById('bulk-row');
-  bulkRow.innerHTML = '';
-  for (const b of BULK) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'bulk-btn';
-    btn.innerHTML =
-      `${symbolHTML(b)}<span class="bulk-btn__name">${b.naam}</span>` +
-      `<span class="bulk-btn__count">+${b.aantal}</span>`;
-    btn.addEventListener('click', () => registerBulk(b, btn));
-    bulkRow.appendChild(btn);
+  if (!hostOnly) {
+    const grid = document.getElementById('drink-grid');
+    grid.innerHTML = '';
+    for (const d of DRINKS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'drink-btn';
+      btn.style.background = d.kleur;
+      btn.dataset.code = d.code;
+      btn.innerHTML = `${symbolHTML(d)}<span>${d.naam}</span>`;
+      btn.addEventListener('click', () => registerDrink(d, btn));
+      grid.appendChild(btn);
+    }
+
+    // Bak / halve bak: snelknoppen die meteen meerdere pinten op jezelf zetten.
+    const bulkRow = document.getElementById('bulk-row');
+    bulkRow.innerHTML = '';
+    for (const b of BULK) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bulk-btn';
+      btn.innerHTML =
+        `${symbolHTML(b)}<span class="bulk-btn__name">${b.naam}</span>` +
+        `<span class="bulk-btn__count">+${b.aantal}</span>`;
+      btn.addEventListener('click', () => registerBulk(b, btn));
+      bulkRow.appendChild(btn);
+    }
   }
 
   hideUndo();
@@ -170,6 +199,15 @@ async function renderSettings() {
   // Aspi-code wijzigen kan Mauro enkel vanuit de leiding-app (daar is hij opper-host).
   const canChangeAspi = canChangePin && store.currentGroup() === 'leiding';
   document.getElementById('settings-changeaspipin').hidden = !canChangeAspi;
+  // Subtiel: de opper-host ziet de actuele codes onder de wijzig-knoppen.
+  const codesEl = document.getElementById('settings-codes');
+  if (canChangePin) {
+    const pins = store.getKnownPins();
+    codesEl.textContent = `Huidige codes — leiding: ${pins.leiding} · aspi: ${pins.aspi}`;
+    codesEl.hidden = false;
+  } else {
+    codesEl.hidden = true;
+  }
   show('settings');
 }
 
@@ -294,7 +332,7 @@ async function renderOverview() {
   const rows = [];
   for (const [personId, counts] of Object.entries(totals)) {
     const m = await store.getMemberById(personId);
-    if (!m || m.groep !== group) continue; // enkel de eigen groep tonen
+    if (!m || m.groep !== group || m.leidingOnly) continue; // enkel de eigen groep, geen beheer-identiteit
     rows.push({ naam: m.naam, personId, counts });
   }
   rows.sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
@@ -428,6 +466,7 @@ async function openAdmin() {
   adminDate = new Date();
   // De aspi-app beheert de voorraad niet (één frigo, dat is voor de drankleiding).
   if (store.currentGroup() !== 'aspi') await store.syncStock(store.monthKey(adminDate));
+  await store.syncAspi(); // verse schulden + afrekenverzoeken
   await renderAdmin();
 }
 
@@ -439,10 +478,11 @@ async function renderAdmin() {
   document.getElementById('stock-card').hidden = aspi; // geen voorraad in de aspi-app
   if (!aspi) await renderAdminStock();
   const exportSum = document.getElementById('export-summary');
-  if (exportSum) exportSum.textContent = aspi ? 'Aspi-afrekening' : 'Afrekening & export';
+  if (exportSum) exportSum.textContent = aspi ? 'Openstaande schuld' : 'Afrekening & export';
   await renderAdminReport();
   await renderAdminLog();
   await renderAdminPersonSelect();
+  await renderAspiSettlements(); // afrekenverzoeken goedkeuren (enkel opper-host, leiding-app)
   // Reset enkel voor de super-admin (Mauro) — onbestaand in de aspi-app.
   document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
@@ -703,6 +743,10 @@ async function renderAdminStock() {
 
 async function renderAdminReport() {
   const group = store.currentGroup();
+
+  // Aspi-app: cumulatieve openstaande schuld i.p.v. een maandafrekening.
+  if (group === 'aspi') { await renderAspiDebts(); return; }
+
   const cons = await store.getConsumptionsForMonth(adminDate);
   const maand = store.monthKey(adminDate);
   const stock = await store.getStock(maand);
@@ -736,15 +780,6 @@ async function renderAdminReport() {
   }
 
   const zline = document.getElementById('admin-zwerf');
-
-  // Aspi-app: geen voorraad/zwerf hier (één frigo, dat blijft bij de drankleiding).
-  // Enkel de aspi-regels exporteren, per persoon.
-  if (group === 'aspi') {
-    zline.hidden = true;
-    document.getElementById('export-text').value =
-      rows.map((r) => `${r.naam} ${formatCounts(r.counts)}`).join('\n');
-    return;
-  }
   zline.hidden = false;
 
   // zwerf per drank (alleen waar in én rest ingevuld zijn), o.b.v. álle registraties
@@ -773,6 +808,96 @@ async function copyExport() {
   const text = document.getElementById('export-text').value;
   try { await navigator.clipboard.writeText(text); toast('Gekopieerd'); }
   catch { document.getElementById('export-text').select(); toast('Selecteer en kopieer'); }
+}
+
+// --- Aspi-schulden (aspi-app) ----------------------------------------------
+
+// Cumulatieve openstaande schuld per aspi, met een afrekenknop (verzoek aan de
+// opper-host). Toont enkel wie schuld heeft of een lopend verzoek.
+async function renderAspiDebts() {
+  const debts = await store.getAspiDebts();
+  const shown = debts.filter((d) =>
+    Object.keys(d.counts).length || store.getAspiSettlementState(d.personId) === 'pending');
+
+  const list = document.getElementById('aspi-debts');
+  const empty = document.getElementById('aspi-debts-empty');
+  list.innerHTML = '';
+  empty.hidden = shown.length > 0;
+
+  for (const d of shown) {
+    const pending = store.getAspiSettlementState(d.personId) === 'pending';
+    const li = document.createElement('li');
+    li.className = 'debt-row';
+    li.innerHTML =
+      `<div class="debt-row__head">` +
+        `<span class="debt-row__name">${d.naam}</span>` +
+        `<span class="debt-row__counts">${formatCounts(d.counts) || '—'}</span>` +
+      `</div>`;
+    if (pending) {
+      const p = document.createElement('span');
+      p.className = 'debt-row__pending';
+      p.textContent = '⏳ Afrekening aangevraagd — wacht op opper-host';
+      li.appendChild(p);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'debt-row__btn';
+      btn.textContent = 'Afrekenen — op 0 zetten';
+      btn.addEventListener('click', () => requestSettlement(d.personId, d.naam));
+      li.appendChild(btn);
+    }
+    list.appendChild(li);
+  }
+
+  // Export = de openstaande schulden (enkel wie iets openstaan heeft).
+  document.getElementById('export-text').value = debts
+    .filter((d) => Object.keys(d.counts).length)
+    .map((d) => `${d.naam} ${formatCounts(d.counts)}`)
+    .join('\n');
+}
+
+async function requestSettlement(personId, naam) {
+  if (!window.confirm(
+    `Afrekening aanvragen voor ${naam}?\n\n` +
+    `De opper-host moet dit goedkeuren. Pas daarna telt ${naam} weer van 0.`)) return;
+  await store.requestAspiSettlement(personId);
+  toast('Aangevraagd — wacht op goedkeuring opper-host');
+  renderAdmin();
+}
+
+// --- Aspi-afrekeningen goedkeuren (leiding-app, opper-host) -----------------
+
+async function renderAspiSettlements() {
+  const card = document.getElementById('admin-aspi-settlements-card');
+  if (!card) return; // bestaat enkel in de leiding-app
+  const me = await store.getCurrentUserId();
+  if (!store.isSuperAdmin(me)) { card.hidden = true; return; }
+
+  const reqs = await store.getPendingAspiSettlements();
+  card.hidden = reqs.length === 0;
+  const list = document.getElementById('admin-aspi-settlements');
+  list.innerHTML = '';
+  for (const r of reqs) {
+    const open = formatCounts(r.counts) || '—';
+    const li = document.createElement('li');
+    li.className = 'overview-row request-row';
+    li.innerHTML =
+      `<div class="request-row__main">Schuld van <b>${r.naam}</b>: ${open}` +
+      `<br><small>aangevraagd ${fmtTime(r.requestedAt)}</small></div>`;
+    const ok = document.createElement('button');
+    ok.className = 'btn-ok'; ok.textContent = 'Goedkeuren';
+    ok.addEventListener('click', async () => {
+      if (!window.confirm(
+        `Afrekening van ${r.naam} goedkeuren?\n\n` +
+        `De schuld (${open}) wordt op 0 gezet. Doe dit enkel als het geld binnen is.`)) return;
+      await store.approveAspiSettlement(r.id); toast('Goedgekeurd — op 0 gezet'); renderAdmin();
+    });
+    const no = document.createElement('button');
+    no.className = 'btn-no'; no.textContent = 'Weiger';
+    no.addEventListener('click', async () => { await store.rejectAspiSettlement(r.id); toast('Geweigerd'); renderAdmin(); });
+    li.appendChild(ok); li.appendChild(no);
+    list.appendChild(li);
+  }
 }
 
 function changeMonth(delta) {
@@ -806,7 +931,7 @@ store.subscribe(() => {
   if (!screens.overview.hidden) renderOverview();
   if (!screens.postvak.hidden) renderPostvak();
   // Log niet live verversen: zo blijven opengeklapte groepen open.
-  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); }
+  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAspiSettlements(); }
 });
 
 // --- Bedrading -------------------------------------------------------------

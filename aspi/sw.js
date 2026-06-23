@@ -1,12 +1,12 @@
 // Service worker voor de aspi-app (scope /aspi/). Cachet de eigen shell + de
 // gedeelde bestanden uit de hoofdmap, zodat de app ook zonder bereik opent.
-const CACHE = 'drank-aspi-v1';
+const CACHE = 'drank-aspi-v2';
 const PREFIX = 'drank-aspi-v'; // enkel eigen oude versies opruimen (niet die van de leiding-app)
 const ASSETS = [
   '.', 'index.html', 'manifest.json',
   '../styles.css', '../app.js', '../store.js', '../members.js',
   '../api.js', '../config.js',
-  '../icon-192.png', '../icon-512.png', '../apple-touch-icon.png',
+  'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
   '../img/pint.png', '../img/frisdrank.png', '../img/chips.png', '../img/water.png',
   '../img/sterkbier.png', '../img/kriek.png', '../img/desperados.png',
   '../img/bak.png', '../img/halvebak.png',

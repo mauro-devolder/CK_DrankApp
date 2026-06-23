@@ -35,6 +35,9 @@ const KEY_EPOCH_SERVER = keyFor('drank.epochServer', G); // laatst gekende serve
 const KEY_HOST_EPOCH = keyFor('drank.hostEpoch', G);   // epoch waarop dit toestel host werd
 const KEY_CONS = 'drank.consumptions';      // gedeeld: één database
 const KEY_STOCK = 'drank.stock';            // gedeeld: één frigo
+const KEY_ASPI_CONS = 'drank.aspiCons';     // gedeeld: actieve aspi-rijen (cross-maand) voor de cumulatieve schuld
+const KEY_SETTLE = 'drank.aspiSettlements'; // gedeeld: afrekeningen (schuld op 0)
+const KEY_PINS = 'drank.pins';              // gedeeld: laatst gekende codes (enkel voor weergave aan de opper-host)
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }
@@ -61,9 +64,17 @@ function newId() {
 // Enkel de leden van de groep van déze app. Naam-opzoeking (memberName,
 // getMemberById) blijft over álle groepen werken, zodat registered_by altijd
 // klopt — enkel de zichtbare lijsten zijn per groep gescheiden.
+// 'leidingOnly'-identiteiten (bv. de aspileiding) zijn beheer-accounts, geen
+// drinkende leden: ze blijven uit de keuzelijst, het overzicht en de schulden.
 export async function getMembers() {
   const groep = currentGroup();
-  return MEMBERS.filter((m) => m.actief && m.groep === groep);
+  return MEMBERS.filter((m) => m.actief && m.groep === groep && !m.leidingOnly);
+}
+
+// id's van de drinkende aspi's (zonder de aspileiding-identiteit). Gebruikt om
+// de cumulatieve schuld op te halen en te berekenen.
+function aspiIds() {
+  return MEMBERS.filter((m) => m.groep === 'aspi' && !m.leidingOnly).map((m) => m.id);
 }
 
 // Groep van een lid (voor het filteren van logs/overzichten per app).
@@ -92,6 +103,13 @@ function defaultPin() { return currentGroup() === 'aspi' ? ASPI_PIN : HOST_PIN; 
 
 // Huidige host-pincode van deze app (server-waarde indien gekend, anders standaard).
 export function currentPin() { return load(KEY_PIN, defaultPin()); }
+
+// Laatst gekende codes van beide groepen (enkel om aan de opper-host te tonen).
+// Terugval op de standaardwaarden zolang de server nog niets gaf.
+export function getKnownPins() {
+  const p = load(KEY_PINS, {});
+  return { leiding: p.leiding || HOST_PIN, aspi: p.aspi || ASPI_PIN };
+}
 
 // Opper-host wijzigt de pincode van een groep: epoch +1 -> alle andere toestellen
 // van die groep verliezen host. Mauro kan zo ook de aspi-code (7777) wijzigen
@@ -302,6 +320,110 @@ export async function hostRemoveOne(personId, drinkCode, date = new Date()) {
   return true;
 }
 
+// --- Aspi-schulden (cumulatief, met afrekening) ----------------------------
+//
+// De aspischuld telt door over de maanden tot ze wordt afgerekend. Afrekenen
+// wist GEEN registraties (anders verschuift de maand-zwerf), het legt enkel een
+// watermerk: de openstaande schuld = de actieve aspi-drankjes ná het laatste
+// goedgekeurde watermerk. Een afrekening moet de opper-host goedkeuren.
+
+function loadSettle() { return load(KEY_SETTLE, []); }
+function saveSettle(arr) { save(KEY_SETTLE, arr); }
+function loadAspiCons() { return load(KEY_ASPI_CONS, []); }
+
+// Alle actieve aspi-registraties (cross-maand): de servercache aangevuld met
+// lokale, nog niet gesyncte tikken uit de gewone wachtrij (zodat een verse tik
+// en offline meetellen). Ontdubbeld op id.
+function aspiDebtRows() {
+  const ids = new Set(aspiIds());
+  const byId = new Map();
+  for (const r of loadAspiCons()) if (ids.has(r.personId) && r.status === 'actief') byId.set(r.id, r);
+  for (const c of loadCons()) if (ids.has(c.personId) && c.status === 'actief') byId.set(c.id, c);
+  return [...byId.values()];
+}
+
+// Watermerk per aspi: het tijdstip van zijn laatste GOEDGEKEURDE afrekening.
+function watermarks() {
+  const wm = {};
+  for (const s of loadSettle()) {
+    if (s.status !== 'approved' || !s.effectiveAt) continue;
+    if (!wm[s.personId] || s.effectiveAt > wm[s.personId]) wm[s.personId] = s.effectiveAt;
+  }
+  return wm;
+}
+
+// Openstaande schuld per aspi: { personId, naam, counts:{p,f,..}, rows } —
+// enkel de drankjes ná het watermerk. Alle drinkende aspi's, op naam gesorteerd.
+export async function getAspiDebts() {
+  const wm = watermarks();
+  const rowsAfter = aspiDebtRows().filter((r) => !wm[r.personId] || r.tijdstip > wm[r.personId]);
+  const out = new Map();
+  for (const id of aspiIds()) out.set(id, { personId: id, naam: memberName(id), counts: {}, rows: [] });
+  for (const r of rowsAfter) {
+    const e = out.get(r.personId);
+    if (!e) continue;
+    e.counts[r.drinkCode] = (e.counts[r.drinkCode] || 0) + 1;
+    e.rows.push(r);
+  }
+  return [...out.values()].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+}
+
+// 'pending' als er voor deze aspi een open afrekenverzoek is, anders 'none'.
+export function getAspiSettlementState(personId) {
+  return loadSettle().some((s) => s.personId === personId && s.status === 'pending') ? 'pending' : 'none';
+}
+
+// Aspileiding vraagt een afrekening aan (schuld op 0). Geen dubbele verzoeken.
+export async function requestAspiSettlement(personId) {
+  if (getAspiSettlementState(personId) === 'pending') return null;
+  const entry = {
+    id: newId(), personId, status: 'pending',
+    requestedAt: new Date().toISOString(), effectiveAt: null, resolvedAt: null, synced: false,
+  };
+  const all = loadSettle();
+  all.push(entry);
+  saveSettle(all);
+  emit();
+  scheduleSync();
+  return entry;
+}
+
+// Voor de leiding-app: open afrekenverzoeken met de schuld-snapshot die de
+// opper-host op 0 zou zetten.
+export async function getPendingAspiSettlements() {
+  const debts = await getAspiDebts();
+  const byPerson = new Map(debts.map((d) => [d.personId, d.counts]));
+  return loadSettle()
+    .filter((s) => s.status === 'pending')
+    .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
+    .map((s) => ({
+      id: s.id,
+      personId: s.personId,
+      naam: memberName(s.personId),
+      requestedAt: s.requestedAt,
+      counts: byPerson.get(s.personId) || {},
+    }));
+}
+
+function resolveSettlement(id, status) {
+  const all = loadSettle();
+  const s = all.find((x) => x.id === id);
+  if (!s) return;
+  s.status = status;
+  s.resolvedAt = new Date().toISOString();
+  // Goedkeuren legt het watermerk op het moment van aanvragen: alles tot dan is
+  // afgerekend, drankjes daarna blijven openstaan.
+  if (status === 'approved') s.effectiveAt = s.requestedAt;
+  s.synced = false;
+  saveSettle(all);
+  emit();
+  scheduleSync();
+}
+
+// Opper-host beslist.
+export async function approveAspiSettlement(id) { resolveSettlement(id, 'approved'); }
+export async function rejectAspiSettlement(id) { resolveSettlement(id, 'rejected'); }
+
 // --- Voorraad --------------------------------------------------------------
 
 export function monthKey(date = new Date()) {
@@ -342,6 +464,31 @@ export async function syncStock(maand) {
     for (const r of rows) store[`${r.maand}|${r.drink_code}|${r.type}`] = r.aantal;
     save(KEY_STOCK, store);
   } catch (e) { console.warn('voorraad ophalen mislukt:', e.message); }
+}
+
+// Aspi-schulden synchroniseren: open/afgehandelde afrekeningen pushen + ophalen,
+// en de cross-maand cache met actieve aspi-registraties verversen. Klein in
+// volume (een handvol aspi's), dus dit mag bij elke sync mee.
+export async function syncAspi() {
+  if (!api.isConfigured() || !navigator.onLine) return;
+  try {
+    const toPush = loadSettle().filter((s) => !s.synced);
+    if (toPush.length) await api.pushSettlements(toPush);
+    const pushedIds = new Set(toPush.map((s) => s.id));
+
+    const server = await api.fetchSettlements();
+    const local = loadSettle();
+    const byId = new Map(local.map((s) => [s.id, s]));
+    for (const s of local) if (pushedIds.has(s.id)) s.synced = true;
+    for (const row of server) {
+      const cur = byId.get(row.id);
+      if (!cur) { local.push(row); byId.set(row.id, row); }
+      else if (cur.synced) Object.assign(cur, row); // server leidend
+    }
+    saveSettle(local);
+
+    save(KEY_ASPI_CONS, await api.fetchAspiConsumptions(aspiIds()));
+  } catch (e) { console.warn('aspi-schulden sync mislukt:', e.message); }
 }
 
 // --- Sync ------------------------------------------------------------------
@@ -387,6 +534,7 @@ export async function syncNow() {
 
     saveCons(all);
     await syncStock(monthKey());
+    await syncAspi();
     await syncConfig();
     emit();
   } catch (err) {
@@ -402,6 +550,14 @@ async function syncConfig() {
   try {
     const cfg = await api.fetchAppConfig();
     if (!cfg) return;
+    // Beide codes cachen voor weergave aan de opper-host (leiding-app).
+    if (cfg.host_pin != null || cfg.aspi_pin != null) {
+      const prev = load(KEY_PINS, {});
+      save(KEY_PINS, {
+        leiding: cfg.host_pin != null ? cfg.host_pin : prev.leiding,
+        aspi: cfg.aspi_pin != null ? cfg.aspi_pin : prev.aspi,
+      });
+    }
     const isAspi = currentGroup() === 'aspi';
     const pin = isAspi ? cfg.aspi_pin : cfg.host_pin;
     const epoch = isAspi ? cfg.aspi_epoch : cfg.host_epoch;
@@ -424,9 +580,12 @@ export async function resetAll() {
   }
   await api.deleteAllConsumptions();
   await api.deleteAllStock();
+  await api.deleteAllSettlements();
   localStorage.removeItem(KEY_CONS);
   localStorage.removeItem(KEY_STOCK);
   localStorage.removeItem(KEY_SEEN);
+  localStorage.removeItem(KEY_ASPI_CONS);
+  localStorage.removeItem(KEY_SETTLE);
   emit();
 }
 
