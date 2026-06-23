@@ -77,21 +77,22 @@ export async function fetchRange(fromISO, toISO) {
   return (await res.json()).map(fromRow);
 }
 
-// Alle ACTIEVE registraties van een set personen (de aspi's), zónder maandgrens.
-// Nodig voor de cumulatieve aspischuld, die over meerdere maanden doorloopt.
+// Alle registraties (álle statussen) van een set personen (de aspi's), zónder
+// maandgrens. Nodig voor de cumulatieve aspischuld (actieve rijen) én voor de
+// aspi-log per uur (ook verwijderde rijen, doorstreept), beide over meerdere
+// maanden heen.
 export async function fetchAspiConsumptions(ids) {
   if (!ids || !ids.length) return [];
   const list = ids.map(encodeURIComponent).join(',');
   const q =
     `?select=id,person_id,registered_by,drink_code,tijdstip,status` +
-    `&person_id=in.(${list})` +
-    `&status=eq.actief`;
+    `&person_id=in.(${list})`;
   const res = await fetch(REST() + q, { headers: headers() });
   if (!res.ok) throw new Error(`aspi cons ${res.status}: ${await res.text()}`);
   return (await res.json()).map(fromRow);
 }
 
-// --- Aspi-afrekeningen (schuld op 0, met goedkeuring opper-host) ------------
+// --- Aspi-afrekeningen (schuld op 0, met goedkeuring drankleiding) ----------
 
 function settleToRow(s) {
   return {

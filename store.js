@@ -37,7 +37,7 @@ const KEY_CONS = 'drank.consumptions';      // gedeeld: één database
 const KEY_STOCK = 'drank.stock';            // gedeeld: één frigo
 const KEY_ASPI_CONS = 'drank.aspiCons';     // gedeeld: actieve aspi-rijen (cross-maand) voor de cumulatieve schuld
 const KEY_SETTLE = 'drank.aspiSettlements'; // gedeeld: afrekeningen (schuld op 0)
-const KEY_PINS = 'drank.pins';              // gedeeld: laatst gekende codes (enkel voor weergave aan de opper-host)
+const KEY_PINS = 'drank.pins';              // gedeeld: laatst gekende codes (enkel voor weergave aan de drankleiding)
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }
@@ -104,16 +104,16 @@ function defaultPin() { return currentGroup() === 'aspi' ? ASPI_PIN : HOST_PIN; 
 // Huidige host-pincode van deze app (server-waarde indien gekend, anders standaard).
 export function currentPin() { return load(KEY_PIN, defaultPin()); }
 
-// Laatst gekende codes van beide groepen (enkel om aan de opper-host te tonen).
+// Laatst gekende codes van beide groepen (enkel om aan de drankleiding te tonen).
 // Terugval op de standaardwaarden zolang de server nog niets gaf.
 export function getKnownPins() {
   const p = load(KEY_PINS, {});
   return { leiding: p.leiding || HOST_PIN, aspi: p.aspi || ASPI_PIN };
 }
 
-// Opper-host wijzigt de pincode van een groep: epoch +1 -> alle andere toestellen
+// Drankleiding wijzigt de pincode van een groep: epoch +1 -> alle andere toestellen
 // van die groep verliezen host. Mauro kan zo ook de aspi-code (7777) wijzigen
-// vanuit de leiding-app, waar hij als opper-host herkend wordt.
+// vanuit de leiding-app, waar hij als drankleiding herkend wordt.
 export async function changePin(targetGroup, newPin) {
   if (!api.isConfigured() || !navigator.onLine) throw new Error('offline');
   const isAspi = targetGroup === 'aspi';
@@ -328,21 +328,26 @@ export async function hostRemoveOne(personId, drinkCode, date = new Date()) {
 // in één keer afgerekend — niet per persoon. De openstaande schuld = de actieve
 // aspi-drankjes ná dat watermerk, getoond PER MAAND (zodat elke maand-zwerf de
 // schuld van díe maand gebruikt, niet een hoop sinds de laatste afrekening).
-// Een afrekening moet de opper-host goedkeuren.
+// Een afrekening moet de drankleiding goedkeuren.
 
 function loadSettle() { return load(KEY_SETTLE, []); }
 function saveSettle(arr) { save(KEY_SETTLE, arr); }
 function loadAspiCons() { return load(KEY_ASPI_CONS, []); }
 
-// Alle actieve aspi-registraties (cross-maand): de servercache aangevuld met
-// lokale, nog niet gesyncte tikken uit de gewone wachtrij (zodat een verse tik
-// en offline meetellen). Ontdubbeld op id.
-function aspiDebtRows() {
+// Alle aspi-registraties (álle statussen, cross-maand): de servercache aangevuld
+// met lokale rijen uit de gewone wachtrij (zodat een verse tik en offline ook
+// meetellen). Lokaal is leidend bij dezelfde id. Ontdubbeld op id.
+function aspiAllRows() {
   const ids = new Set(aspiIds());
   const byId = new Map();
-  for (const r of loadAspiCons()) if (ids.has(r.personId) && r.status === 'actief') byId.set(r.id, r);
-  for (const c of loadCons()) if (ids.has(c.personId) && c.status === 'actief') byId.set(c.id, c);
+  for (const r of loadAspiCons()) if (ids.has(r.personId)) byId.set(r.id, r);
+  for (const c of loadCons()) if (ids.has(c.personId)) byId.set(c.id, c); // lokaal leidend
   return [...byId.values()];
+}
+
+// Enkel de actieve rijen — dat is de schuld.
+function aspiDebtRows() {
+  return aspiAllRows().filter((r) => r.status === 'actief');
 }
 
 // Eén gedeeld watermerk: het tijdstip van de laatste GOEDGEKEURDE afrekening
@@ -385,6 +390,27 @@ export async function getAspiDebtsByMonth() {
   });
 }
 
+// Log van álle aspi's sinds de laatste afrekening (álle statussen, nieuwste
+// eerst), in de vorm die buildGroupedLog verwacht. Na een goedgekeurde
+// afrekening staat het watermerk op 'nu', dus deze log is dan leeg — de
+// aspileiding-app is dan "volledig leeg".
+export async function getAspiLog() {
+  const wm = aspiWatermark();
+  return aspiAllRows()
+    .filter((r) => !wm || r.tijdstip > wm)
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
+    .map((c) => ({
+      id: c.id,
+      personId: c.personId,
+      persoon: memberName(c.personId),
+      groep: memberGroup(c.personId),
+      door: c.registeredBy && c.registeredBy !== c.personId ? memberName(c.registeredBy) : null,
+      drinkCode: c.drinkCode,
+      tijdstip: c.tijdstip,
+      status: c.status,
+    }));
+}
+
 // Totale openstaande schuld per aspi over alle maanden (voor de snapshot bij de
 // goedkeuring) + 'pending'-status. Globaal: één afrekening voor iedereen.
 export async function getAspiOutstanding() {
@@ -419,7 +445,7 @@ export async function requestAspiSettlement() {
 }
 
 // Voor de leiding-app: het open afrekenverzoek met de per-aspi schuld-snapshot
-// die de opper-host op 0 zou zetten.
+// die de drankleiding op 0 zou zetten.
 export async function getPendingAspiSettlements() {
   const perPerson = await getAspiOutstanding();
   return loadSettle()
@@ -443,7 +469,7 @@ function resolveSettlement(id, status) {
   scheduleSync();
 }
 
-// Opper-host beslist.
+// Drankleiding beslist.
 export async function approveAspiSettlement(id) { resolveSettlement(id, 'approved'); }
 export async function rejectAspiSettlement(id) { resolveSettlement(id, 'rejected'); }
 
@@ -567,13 +593,13 @@ export async function syncNow() {
   }
 }
 
-// Haal de gedeelde pincode + epoch op. Trek host-modus in als de opper-host de
-// pincode wijzigde (epoch veranderde), behalve op het toestel van de opper-host.
+// Haal de gedeelde pincode + epoch op. Trek host-modus in als de drankleiding de
+// pincode wijzigde (epoch veranderde), behalve op het toestel van de drankleiding.
 async function syncConfig() {
   try {
     const cfg = await api.fetchAppConfig();
     if (!cfg) return;
-    // Beide codes cachen voor weergave aan de opper-host (leiding-app).
+    // Beide codes cachen voor weergave aan de drankleiding (leiding-app).
     if (cfg.host_pin != null || cfg.aspi_pin != null) {
       const prev = load(KEY_PINS, {});
       save(KEY_PINS, {
@@ -589,7 +615,7 @@ async function syncConfig() {
     save(KEY_EPOCH_SERVER, epoch);
     if (!isHostUnlocked()) return;
     const me = curUser();
-    if (isSuperAdmin(me)) { save(KEY_HOST_EPOCH, epoch); return; } // opper-host blijft
+    if (isSuperAdmin(me)) { save(KEY_HOST_EPOCH, epoch); return; } // drankleiding blijft
     const localEpoch = load(KEY_HOST_EPOCH, null);
     if (localEpoch == null) { save(KEY_HOST_EPOCH, epoch); return; } // bestaande host meenemen
     if (localEpoch !== epoch) lockHost(); // pincode gewijzigd -> uitloggen als host

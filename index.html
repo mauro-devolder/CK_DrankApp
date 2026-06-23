@@ -43,7 +43,13 @@
       <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
       <div id="bulk-head" class="bulk-head">Andere</div>
       <div id="bulk-row" class="bulk-row"></div>
-      <p id="host-hint" class="host-hint" hidden>Je bent ingelogd als aspileiding. Beheer de schulden via ⚙️ rechtsboven.</p>
+      <p id="host-hint" class="host-hint" hidden>Je bent ingelogd als aspileiding. Afrekenen en aanpassen via ⚙️ rechtsboven.</p>
+      <section id="host-log-wrap" class="host-log-wrap" hidden>
+        <h2 class="host-log-title">Log — alle aspi's</h2>
+        <p class="host-log-sub">Per uur, sinds de laatste afrekening. Tik een dag/week om open te klappen.</p>
+        <ul id="host-log" class="log-list"></ul>
+        <p id="host-log-empty" class="overview-empty" hidden>Nog niets sinds de laatste afrekening.</p>
+      </section>
     </main>
 
     <!-- Bevestiging + ongedaan maken (60s) -->
@@ -66,9 +72,9 @@
       <button id="settings-hostlogin" class="bigbtn" type="button">Inloggen als drankleiding</button>
       <button id="settings-hostlogout" class="bigbtn bigbtn--ghost" type="button" hidden>Drankleiding-modus uitschakelen</button>
       <p class="settings__hint">Wisselen van persoon en inloggen als drankleiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
-      <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (opper-host)</button>
-      <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de drankleiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
-      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode wijzigen (opper-host)</button>
+      <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (drankleiding)</button>
+      <p id="settings-changepin-hint" class="settings__hint" hidden>Als drankleiding kun je de pincode wijzigen. Alle andere toestellen verliezen dan de drankleiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
+      <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode wijzigen (drankleiding)</button>
       <p id="settings-codes" class="settings__codes" hidden></p>
     </main>
   </section>

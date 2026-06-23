@@ -84,11 +84,17 @@ de laatste afrekening. Afrekenen wist géén registraties; het legt één **gede
 openstaande schuld = de actieve aspi-drankjes ná dat watermerk.
 
 Afrekenen gebeurt **voor álle aspi's tegelijk** (niet per persoon): de **aspileiding** drukt op
-één knop *"Alle aspi's afrekenen"* → **goedkeuringsverzoek** bij de opper-host (Mauro) in de
-leiding-app, mét per-aspi snapshot. Pas na zijn **Goedkeuren** telt iedereen weer van 0.
+één knop *"Alle aspi's afrekenen"* → **goedkeuringsverzoek** bij de drankleiding (Mauro) in de
+leiding-app, mét per-aspi snapshot. Pas na **Goedkeuren** telt iedereen weer van 0. Het
+afrekenen zet één gedeeld watermerk; alle schuld/log **vóór** dat watermerk valt weg, dus na een
+afrekening is de aspileiding-app **leeg** (de registraties blijven bestaan voor de zwerf).
+
 Aspileiding logt in via **"Inloggen als aspileiding"** (code 7777); dat is een `leidingOnly`-
-identiteit (`as1`) die nergens in de aspi-lijsten/export opduikt. In de **aspi-app** is de sectie
-**ANDERE** (bak/halve bak e.d.) volledig verborgen — niet voor de aspi's.
+identiteit (`as1`) die nergens in de aspi-lijsten/export opduikt. Het **aspileiding-hoofdscherm**
+toont de **log van álle aspi's per uur** (sinds de laatste afrekening) — geen stats, geen
+drankknoppen; afrekenen/aanpassen/log-per-maand zitten onder ⚙️. In de **aspi-app** is de sectie
+**ANDERE** (bak/halve bak e.d.) volledig verborgen — niet voor de aspi's. Terminologie: overal
+**"drankleiding"** (de term "opper-host" wordt nergens nog gebruikt).
 
 ## 6. Openstaande punten
 

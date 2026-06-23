@@ -145,7 +145,10 @@ async function renderMain() {
   document.getElementById('bulk-row').hidden = hideBulk;
   document.getElementById('go-postvak').hidden = hostOnly;
   document.getElementById('go-mylog').hidden = hostOnly;
+  document.getElementById('go-overview').hidden = hostOnly; // geen stats voor de aspileiding
   document.getElementById('host-hint').hidden = !hostOnly;
+  const hostLogWrap = document.getElementById('host-log-wrap');
+  if (hostLogWrap) hostLogWrap.hidden = !hostOnly;
 
   if (!hostOnly) {
     const grid = document.getElementById('drink-grid');
@@ -179,11 +182,25 @@ async function renderMain() {
     }
   }
 
+  if (hostOnly) await renderHostLog();
+
   hideUndo();
   refreshBell();
   refreshSyncStatus();
   refreshGear();
   show('main');
+}
+
+// Aspileiding-hoofdscherm: de log van álle aspi's per uur, sinds de laatste
+// afrekening (na een reset is die leeg). Hergebruikt de gegroepeerde log-bouwer.
+async function renderHostLog() {
+  const wrap = document.getElementById('host-log-wrap');
+  if (!wrap) return;
+  buildGroupedLog(await store.getAspiLog(), document.getElementById('host-log'),
+    document.getElementById('host-log-empty'), true);
+  // Meest recente groep meteen open, zodat live-updates zichtbaar blijven.
+  const first = wrap.querySelector('details');
+  if (first) first.open = true;
 }
 
 function refreshGear() {
@@ -199,14 +216,14 @@ async function renderSettings() {
   const host = store.isHostUnlocked();
   document.getElementById('settings-hostlogin').hidden = host;
   document.getElementById('settings-hostlogout').hidden = !host;
-  // Pincode wijzigen: enkel de opper-host (Mauro), en enkel in host-modus.
+  // Pincode wijzigen: enkel de drankleiding (Mauro), en enkel in host-modus.
   const canChangePin = host && store.isSuperAdmin(meId);
   document.getElementById('settings-changepin').hidden = !canChangePin;
   document.getElementById('settings-changepin-hint').hidden = !canChangePin;
-  // Aspi-code wijzigen kan Mauro enkel vanuit de leiding-app (daar is hij opper-host).
+  // Aspi-code wijzigen kan Mauro enkel vanuit de leiding-app (daar is hij drankleiding).
   const canChangeAspi = canChangePin && store.currentGroup() === 'leiding';
   document.getElementById('settings-changeaspipin').hidden = !canChangeAspi;
-  // Subtiel: de opper-host ziet de actuele codes onder de wijzig-knoppen.
+  // Subtiel: de drankleiding ziet de actuele codes onder de wijzig-knoppen.
   const codesEl = document.getElementById('settings-codes');
   if (canChangePin) {
     const pins = store.getKnownPins();
@@ -233,7 +250,7 @@ async function doChangePin(targetGroup, label) {
   }
 }
 
-// Pincode van déze app wijzigen (opper-host).
+// Pincode van déze app wijzigen (drankleiding).
 async function settingsChangePin() { return doChangePin(store.currentGroup(), 'pincode'); }
 
 // Vanuit de leiding-app kan Mauro ook de aspi-code (7777) wijzigen.
@@ -489,7 +506,7 @@ async function renderAdmin() {
   await renderAdminReport();
   await renderAdminLog();
   await renderAdminPersonSelect();
-  await renderAspiSettlements(); // afrekenverzoeken goedkeuren (enkel opper-host, leiding-app)
+  await renderAspiSettlements(); // afrekenverzoeken goedkeuren (enkel drankleiding, leiding-app)
   // Reset enkel voor de super-admin (Mauro) — onbestaand in de aspi-app.
   document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
@@ -866,7 +883,7 @@ async function renderAspiDebts() {
     if (store.getAspiSettlementState() === 'pending') {
       const p = document.createElement('p');
       p.className = 'debt-row__pending';
-      p.textContent = '⏳ Afrekening aangevraagd — wacht op opper-host';
+      p.textContent = '⏳ Afrekening aangevraagd — wacht op de drankleiding';
       area.appendChild(p);
     } else {
       const btn = document.createElement('button');
@@ -890,13 +907,13 @@ async function renderAspiDebts() {
 async function requestSettlement() {
   if (!window.confirm(
     "Afrekening aanvragen voor ÁLLE aspi's?\n\n" +
-    'De opper-host moet dit goedkeuren. Pas daarna telt iedereen weer van 0.')) return;
+    'De drankleiding moet dit goedkeuren. Pas daarna telt iedereen weer van 0.')) return;
   await store.requestAspiSettlement();
-  toast('Aangevraagd — wacht op goedkeuring opper-host');
+  toast('Aangevraagd — wacht op goedkeuring drankleiding');
   renderAdmin();
 }
 
-// --- Aspi-afrekeningen goedkeuren (leiding-app, opper-host) -----------------
+// --- Aspi-afrekeningen goedkeuren (leiding-app, drankleiding) -----------------
 
 async function renderAspiSettlements() {
   const card = document.getElementById('admin-aspi-settlements-card');
@@ -966,6 +983,9 @@ store.subscribe(() => {
   if (!screens.postvak.hidden) renderPostvak();
   // Log niet live verversen: zo blijven opengeklapte groepen open.
   if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAspiSettlements(); }
+  // Aspileiding-hoofdscherm: de live log van alle aspi's wél bijwerken.
+  const hlw = document.getElementById('host-log-wrap');
+  if (!screens.main.hidden && hlw && !hlw.hidden) renderHostLog();
 });
 
 // --- Bedrading -------------------------------------------------------------

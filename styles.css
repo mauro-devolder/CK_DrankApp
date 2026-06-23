@@ -537,7 +537,12 @@ details[open] > .log-sum::before { transform: rotate(90deg); }
 .onboarding__leiding:active { background: var(--line); }
 
 /* Hint op het hoofdscherm voor de aspileiding (beheer-identiteit). */
-.host-hint { color: var(--muted); text-align: center; margin: 24px 16px; line-height: 1.5; }
+.host-hint { color: var(--muted); text-align: center; margin: 16px 16px 4px; line-height: 1.5; }
+
+/* Log van alle aspi's op het aspileiding-hoofdscherm. */
+.host-log-wrap { margin-top: 8px; }
+.host-log-title { margin: 8px 0 2px; font-size: 1.2rem; }
+.host-log-sub { margin: 0 0 12px; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
 
 /* Codes die enkel de opper-host onder de pincode-knoppen ziet. */
 .settings__codes {
