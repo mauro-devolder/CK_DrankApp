@@ -135,10 +135,14 @@ async function renderMain() {
   // De aspileiding is een beheer-identiteit: geen persoonlijke drankknoppen,
   // postvak of mijn-log — enkel beheer (via ⚙️) en het overzicht.
   const hostOnly = !!me.leidingOnly;
+  // 'ANDERE' (bak/halve bak en alles wat daar later bij komt) is niet voor de
+  // aspi's: in de aspi-app blijft die sectie volledig verborgen.
+  const hideBulk = hostOnly || store.currentGroup() === 'aspi';
+
   document.getElementById('drink-grid').hidden = hostOnly;
   document.getElementById('go-others').hidden = hostOnly;
-  document.getElementById('bulk-head').hidden = hostOnly;
-  document.getElementById('bulk-row').hidden = hostOnly;
+  document.getElementById('bulk-head').hidden = hideBulk;
+  document.getElementById('bulk-row').hidden = hideBulk;
   document.getElementById('go-postvak').hidden = hostOnly;
   document.getElementById('go-mylog').hidden = hostOnly;
   document.getElementById('host-hint').hidden = !hostOnly;
@@ -158,17 +162,20 @@ async function renderMain() {
     }
 
     // Bak / halve bak: snelknoppen die meteen meerdere pinten op jezelf zetten.
+    // Niet opbouwen in de aspi-app (sectie is daar verborgen).
     const bulkRow = document.getElementById('bulk-row');
     bulkRow.innerHTML = '';
-    for (const b of BULK) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'bulk-btn';
-      btn.innerHTML =
-        `${symbolHTML(b)}<span class="bulk-btn__name">${b.naam}</span>` +
-        `<span class="bulk-btn__count">+${b.aantal}</span>`;
-      btn.addEventListener('click', () => registerBulk(b, btn));
-      bulkRow.appendChild(btn);
+    if (!hideBulk) {
+      for (const b of BULK) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bulk-btn';
+        btn.innerHTML =
+          `${symbolHTML(b)}<span class="bulk-btn__name">${b.naam}</span>` +
+          `<span class="bulk-btn__count">+${b.aantal}</span>`;
+        btn.addEventListener('click', () => registerBulk(b, btn));
+        bulkRow.appendChild(btn);
+      }
     }
   }
 
@@ -812,55 +819,79 @@ async function copyExport() {
 
 // --- Aspi-schulden (aspi-app) ----------------------------------------------
 
-// Cumulatieve openstaande schuld per aspi, met een afrekenknop (verzoek aan de
-// opper-host). Toont enkel wie schuld heeft of een lopend verzoek.
+// 'YYYY-MM' -> 'juni 2026'.
+function monthName(key) {
+  const [y, m] = key.split('-');
+  return `${MONTHS[Number(m) - 1]} ${y}`;
+}
+
+// Openstaande schuld PER MAAND (zodat elke maand-zwerf de schuld van díe maand
+// kan gebruiken), met onderaan één afrekenknop voor álle aspi's samen.
 async function renderAspiDebts() {
-  const debts = await store.getAspiDebts();
-  const shown = debts.filter((d) =>
-    Object.keys(d.counts).length || store.getAspiSettlementState(d.personId) === 'pending');
+  const months = await store.getAspiDebtsByMonth();
 
   const list = document.getElementById('aspi-debts');
   const empty = document.getElementById('aspi-debts-empty');
   list.innerHTML = '';
-  empty.hidden = shown.length > 0;
+  const hasDebt = months.some((m) => m.perPerson.length);
+  empty.hidden = hasDebt;
 
-  for (const d of shown) {
-    const pending = store.getAspiSettlementState(d.personId) === 'pending';
+  for (const m of months) {
     const li = document.createElement('li');
-    li.className = 'debt-row';
-    li.innerHTML =
-      `<div class="debt-row__head">` +
-        `<span class="debt-row__name">${d.naam}</span>` +
-        `<span class="debt-row__counts">${formatCounts(d.counts) || '—'}</span>` +
-      `</div>`;
-    if (pending) {
-      const p = document.createElement('span');
-      p.className = 'debt-row__pending';
-      p.textContent = '⏳ Afrekening aangevraagd — wacht op opper-host';
-      li.appendChild(p);
-    } else {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'debt-row__btn';
-      btn.textContent = 'Afrekenen — op 0 zetten';
-      btn.addEventListener('click', () => requestSettlement(d.personId, d.naam));
-      li.appendChild(btn);
+    const det = document.createElement('details');
+    det.open = true;
+    const sum = document.createElement('summary');
+    sum.className = 'log-sum';
+    sum.innerHTML = `<span>${monthName(m.maand)}</span><span class="log-sum__count">${formatCounts(m.total)}</span>`;
+    det.appendChild(sum);
+    const inner = document.createElement('div');
+    inner.className = 'log-agg';
+    for (const p of m.perPerson) {
+      const row = document.createElement('div');
+      row.className = 'debt-personrow';
+      row.innerHTML =
+        `<span class="debt-row__name">${p.naam}</span>` +
+        `<span class="debt-row__counts">${formatCounts(p.counts)}</span>`;
+      inner.appendChild(row);
     }
+    det.appendChild(inner);
+    li.appendChild(det);
     list.appendChild(li);
   }
 
-  // Export = de openstaande schulden (enkel wie iets openstaan heeft).
-  document.getElementById('export-text').value = debts
-    .filter((d) => Object.keys(d.counts).length)
-    .map((d) => `${d.naam} ${formatCounts(d.counts)}`)
-    .join('\n');
+  // Eén afrekenknop voor álle aspi's (of de lopende-verzoek-melding).
+  const area = document.getElementById('aspi-settle-area');
+  area.innerHTML = '';
+  if (hasDebt) {
+    if (store.getAspiSettlementState() === 'pending') {
+      const p = document.createElement('p');
+      p.className = 'debt-row__pending';
+      p.textContent = '⏳ Afrekening aangevraagd — wacht op opper-host';
+      area.appendChild(p);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bigbtn bigbtn--danger';
+      btn.textContent = "Alle aspi's afrekenen — op 0 zetten";
+      btn.addEventListener('click', requestSettlement);
+      area.appendChild(btn);
+    }
+  }
+
+  // Export = openstaande schuld per maand, per persoon.
+  const lines = [];
+  for (const m of months) {
+    lines.push(`== ${monthName(m.maand)} ==`);
+    for (const p of m.perPerson) lines.push(`${p.naam} ${formatCounts(p.counts)}`);
+  }
+  document.getElementById('export-text').value = lines.join('\n');
 }
 
-async function requestSettlement(personId, naam) {
+async function requestSettlement() {
   if (!window.confirm(
-    `Afrekening aanvragen voor ${naam}?\n\n` +
-    `De opper-host moet dit goedkeuren. Pas daarna telt ${naam} weer van 0.`)) return;
-  await store.requestAspiSettlement(personId);
+    "Afrekening aanvragen voor ÁLLE aspi's?\n\n" +
+    'De opper-host moet dit goedkeuren. Pas daarna telt iedereen weer van 0.')) return;
+  await store.requestAspiSettlement();
   toast('Aangevraagd — wacht op goedkeuring opper-host');
   renderAdmin();
 }
@@ -878,19 +909,22 @@ async function renderAspiSettlements() {
   const list = document.getElementById('admin-aspi-settlements');
   list.innerHTML = '';
   for (const r of reqs) {
-    const open = formatCounts(r.counts) || '—';
+    const snapshot = r.perPerson.length
+      ? r.perPerson.map((p) => `${p.naam}: ${formatCounts(p.counts)}`).join('<br>')
+      : '—';
     const li = document.createElement('li');
     li.className = 'overview-row request-row';
     li.innerHTML =
-      `<div class="request-row__main">Schuld van <b>${r.naam}</b>: ${open}` +
-      `<br><small>aangevraagd ${fmtTime(r.requestedAt)}</small></div>`;
+      `<div class="request-row__main"><b>Alle aspi's afrekenen</b>` +
+      `<br><small>aangevraagd ${fmtTime(r.requestedAt)}</small>` +
+      `<div class="settle-snapshot">${snapshot}</div></div>`;
     const ok = document.createElement('button');
     ok.className = 'btn-ok'; ok.textContent = 'Goedkeuren';
     ok.addEventListener('click', async () => {
       if (!window.confirm(
-        `Afrekening van ${r.naam} goedkeuren?\n\n` +
-        `De schuld (${open}) wordt op 0 gezet. Doe dit enkel als het geld binnen is.`)) return;
-      await store.approveAspiSettlement(r.id); toast('Goedgekeurd — op 0 gezet'); renderAdmin();
+        "Afrekening van alle aspi's goedkeuren?\n\n" +
+        'Alle openstaande schulden worden op 0 gezet. Doe dit enkel als het geld binnen is.')) return;
+      await store.approveAspiSettlement(r.id); toast('Goedgekeurd — alles op 0 gezet'); renderAdmin();
     });
     const no = document.createElement('button');
     no.className = 'btn-no'; no.textContent = 'Weiger';

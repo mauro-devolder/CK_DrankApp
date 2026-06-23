@@ -74,17 +74,21 @@ bak/halve bak, productfoto's, inklapbaar opgeschoond beheer, log met uren + door
 verwijderingen, geen dubbeltik-zoom, en de **volledige aspi-app** (eigen instappunt/icoon-
 plek, code 7777, aspi-export, rollen, groep-scheiding zonder lekkage).
 
-## 5b. Aspischulden (cumulatief, met goedkeuring)
+## 5b. Aspischulden (per maand, globale afrekening met goedkeuring)
 
-De aspischuld telt **cumulatief** door over de maanden (ze worden niet elke maand betaald).
-Afrekenen wist géén registraties — het legt een **watermerk** (`aspi_settlements.effective_at`),
-zodat de maand-zwerf van de drankleiding ongemoeid blijft. De openstaande schuld = de actieve
-aspi-drankjes ná het laatste goedgekeurde watermerk. De **aspileiding** vraagt per aspi een
-afrekening aan (knop in de aspi-beheer); dat verschijnt als **goedkeuringsverzoek** bij de
-opper-host (Mauro) in de leiding-app, mét schuld-snapshot. Pas na zijn **Goedkeuren** telt die
-aspi weer van 0. Aspileiding logt in via de knop **"Inloggen als aspileiding"** op het keuze-
-scherm (code 7777); dat is een `leidingOnly`-identiteit (`as1`) die nergens in de aspi-lijsten/
-overzichten/export opduikt en op het hoofdscherm enkel beheer toont.
+De aspischuld blijft **per maand** staan en stapelt op (ze worden niet elke maand betaald). De
+aspi-beheer toont de openstaande schuld **per maand, per persoon** (juni 2026 → Michelle 3p 1f…),
+zodat elke maand-zwerf van de drankleiding de schuld van díe maand gebruikt — niet een blok sinds
+de laatste afrekening. Afrekenen wist géén registraties; het legt één **gedeeld watermerk**
+(`aspi_settlements.effective_at`, `person_id='ALL'`), zodat de maand-zwerf ongemoeid blijft. De
+openstaande schuld = de actieve aspi-drankjes ná dat watermerk.
+
+Afrekenen gebeurt **voor álle aspi's tegelijk** (niet per persoon): de **aspileiding** drukt op
+één knop *"Alle aspi's afrekenen"* → **goedkeuringsverzoek** bij de opper-host (Mauro) in de
+leiding-app, mét per-aspi snapshot. Pas na zijn **Goedkeuren** telt iedereen weer van 0.
+Aspileiding logt in via **"Inloggen als aspileiding"** (code 7777); dat is een `leidingOnly`-
+identiteit (`as1`) die nergens in de aspi-lijsten/export opduikt. In de **aspi-app** is de sectie
+**ANDERE** (bak/halve bak e.d.) volledig verborgen — niet voor de aspi's.
 
 ## 6. Openstaande punten
 

@@ -320,12 +320,15 @@ export async function hostRemoveOne(personId, drinkCode, date = new Date()) {
   return true;
 }
 
-// --- Aspi-schulden (cumulatief, met afrekening) ----------------------------
+// --- Aspi-schulden (per maand, met afrekening voor álle aspi's) -------------
 //
-// De aspischuld telt door over de maanden tot ze wordt afgerekend. Afrekenen
-// wist GEEN registraties (anders verschuift de maand-zwerf), het legt enkel een
-// watermerk: de openstaande schuld = de actieve aspi-drankjes ná het laatste
-// goedgekeurde watermerk. Een afrekening moet de opper-host goedkeuren.
+// De aspischuld blijft per maand staan en stapelt op zolang ze niet wordt
+// afgerekend. Afrekenen wist GEEN registraties (anders verschuift de maand-zwerf
+// van de drankleiding), het legt enkel één GEDEELD watermerk: alle aspi's worden
+// in één keer afgerekend — niet per persoon. De openstaande schuld = de actieve
+// aspi-drankjes ná dat watermerk, getoond PER MAAND (zodat elke maand-zwerf de
+// schuld van díe maand gebruikt, niet een hoop sinds de laatste afrekening).
+// Een afrekening moet de opper-host goedkeuren.
 
 function loadSettle() { return load(KEY_SETTLE, []); }
 function saveSettle(arr) { save(KEY_SETTLE, arr); }
@@ -342,42 +345,69 @@ function aspiDebtRows() {
   return [...byId.values()];
 }
 
-// Watermerk per aspi: het tijdstip van zijn laatste GOEDGEKEURDE afrekening.
-function watermarks() {
-  const wm = {};
+// Eén gedeeld watermerk: het tijdstip van de laatste GOEDGEKEURDE afrekening
+// (alle aspi's samen). Alles ervóór is afgerekend.
+function aspiWatermark() {
+  let wm = null;
   for (const s of loadSettle()) {
-    if (s.status !== 'approved' || !s.effectiveAt) continue;
-    if (!wm[s.personId] || s.effectiveAt > wm[s.personId]) wm[s.personId] = s.effectiveAt;
+    if (s.status === 'approved' && s.effectiveAt && (!wm || s.effectiveAt > wm)) wm = s.effectiveAt;
   }
   return wm;
 }
 
-// Openstaande schuld per aspi: { personId, naam, counts:{p,f,..}, rows } —
-// enkel de drankjes ná het watermerk. Alle drinkende aspi's, op naam gesorteerd.
-export async function getAspiDebts() {
-  const wm = watermarks();
-  const rowsAfter = aspiDebtRows().filter((r) => !wm[r.personId] || r.tijdstip > wm[r.personId]);
-  const out = new Map();
-  for (const id of aspiIds()) out.set(id, { personId: id, naam: memberName(id), counts: {}, rows: [] });
-  for (const r of rowsAfter) {
-    const e = out.get(r.personId);
-    if (!e) continue;
-    e.counts[r.drinkCode] = (e.counts[r.drinkCode] || 0) + 1;
-    e.rows.push(r);
+function monthKeyOf(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Openstaande schuld PER MAAND (nieuwste eerst). Elke maand:
+//   { maand:'YYYY-MM', perPerson:[{personId,naam,counts}], total:{p,f,..} }
+// Enkel de drankjes ná het gedeelde watermerk.
+export async function getAspiDebtsByMonth() {
+  const wm = aspiWatermark();
+  const rows = aspiDebtRows().filter((r) => !wm || r.tijdstip > wm);
+  const byMonth = new Map();
+  for (const r of rows) {
+    const k = monthKeyOf(r.tijdstip);
+    if (!byMonth.has(k)) byMonth.set(k, []);
+    byMonth.get(k).push(r);
   }
-  return [...out.values()].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+  return [...byMonth.keys()].sort().reverse().map((maand) => {
+    const perPerson = new Map();
+    const total = {};
+    for (const r of byMonth.get(maand)) {
+      if (!perPerson.has(r.personId)) perPerson.set(r.personId, { personId: r.personId, naam: memberName(r.personId), counts: {} });
+      perPerson.get(r.personId).counts[r.drinkCode] = (perPerson.get(r.personId).counts[r.drinkCode] || 0) + 1;
+      total[r.drinkCode] = (total[r.drinkCode] || 0) + 1;
+    }
+    const list = [...perPerson.values()].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+    return { maand, perPerson: list, total };
+  });
 }
 
-// 'pending' als er voor deze aspi een open afrekenverzoek is, anders 'none'.
-export function getAspiSettlementState(personId) {
-  return loadSettle().some((s) => s.personId === personId && s.status === 'pending') ? 'pending' : 'none';
+// Totale openstaande schuld per aspi over alle maanden (voor de snapshot bij de
+// goedkeuring) + 'pending'-status. Globaal: één afrekening voor iedereen.
+export async function getAspiOutstanding() {
+  const months = await getAspiDebtsByMonth();
+  const perPerson = new Map();
+  for (const m of months) for (const p of m.perPerson) {
+    if (!perPerson.has(p.personId)) perPerson.set(p.personId, { personId: p.personId, naam: p.naam, counts: {} });
+    const acc = perPerson.get(p.personId).counts;
+    for (const [c, n] of Object.entries(p.counts)) acc[c] = (acc[c] || 0) + n;
+  }
+  return [...perPerson.values()].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
 }
 
-// Aspileiding vraagt een afrekening aan (schuld op 0). Geen dubbele verzoeken.
-export async function requestAspiSettlement(personId) {
-  if (getAspiSettlementState(personId) === 'pending') return null;
+// 'pending' als er een open afrekenverzoek (voor alle aspi's) is, anders 'none'.
+export function getAspiSettlementState() {
+  return loadSettle().some((s) => s.status === 'pending') ? 'pending' : 'none';
+}
+
+// Aspileiding vraagt één afrekening aan voor álle aspi's. Geen dubbele verzoeken.
+export async function requestAspiSettlement() {
+  if (getAspiSettlementState() === 'pending') return null;
   const entry = {
-    id: newId(), personId, status: 'pending',
+    id: newId(), personId: 'ALL', status: 'pending',
     requestedAt: new Date().toISOString(), effectiveAt: null, resolvedAt: null, synced: false,
   };
   const all = loadSettle();
@@ -388,21 +418,14 @@ export async function requestAspiSettlement(personId) {
   return entry;
 }
 
-// Voor de leiding-app: open afrekenverzoeken met de schuld-snapshot die de
-// opper-host op 0 zou zetten.
+// Voor de leiding-app: het open afrekenverzoek met de per-aspi schuld-snapshot
+// die de opper-host op 0 zou zetten.
 export async function getPendingAspiSettlements() {
-  const debts = await getAspiDebts();
-  const byPerson = new Map(debts.map((d) => [d.personId, d.counts]));
+  const perPerson = await getAspiOutstanding();
   return loadSettle()
     .filter((s) => s.status === 'pending')
     .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
-    .map((s) => ({
-      id: s.id,
-      personId: s.personId,
-      naam: memberName(s.personId),
-      requestedAt: s.requestedAt,
-      counts: byPerson.get(s.personId) || {},
-    }));
+    .map((s) => ({ id: s.id, requestedAt: s.requestedAt, perPerson }));
 }
 
 function resolveSettlement(id, status) {

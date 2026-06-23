@@ -560,4 +560,9 @@ details[open] > .log-sum::before { transform: rotate(90deg); }
   background: none; border: 1.5px solid var(--brand); color: var(--brand);
   border-radius: 12px; padding: 8px 14px; font-weight: 700;
 }
-.debt-row__pending { color: var(--muted); font-style: italic; }
+.debt-row__pending { color: var(--muted); font-style: italic; display: block; margin-top: 6px; }
+/* Per-persoon regel binnen een maand-sectie van de schuld. */
+.debt-personrow { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; }
+.debt-personrow .debt-row__name { flex: 1; }
+/* Snapshot van de per-aspi schuld in het goedkeuringsverzoek. */
+.settle-snapshot { margin-top: 8px; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.5; }
