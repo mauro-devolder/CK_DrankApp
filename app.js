@@ -1,6 +1,6 @@
 // Controller: schermwissels + alle interacties. Alle opslag loopt via store.js.
 
-import { DRINKS, DRINK_BY_CODE, BULK } from './members.js';
+import { DRINKS, DRINK_BY_CODE, BULK, BIERPONG } from './members.js';
 import * as store from './store.js';
 
 // De aspi-app draait vanuit /aspi/, maar de foto's staan in de hoofdmap.
@@ -32,6 +32,7 @@ const screens = {
   admin: document.getElementById('screen-admin'),
   settings: document.getElementById('screen-settings'),
   mylog: document.getElementById('screen-mylog'),
+  bierpong: document.getElementById('screen-bierpong'),
 };
 
 function show(name) {
@@ -52,9 +53,17 @@ const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
 
 const HOST_BADGE = '<span class="host-badge">drankleiding</span>';
 
+// Toon een aantal netjes: heel getal zonder komma, anders met komma (max 2
+// decimalen, nullen weg). Nodig sinds bierpong halve/decimale pinten kan geven.
+function fmtAmount(n) {
+  const r = Math.round(n * 100) / 100;
+  if (Number.isInteger(r)) return String(r);
+  return r.toFixed(2).replace(/0+$/, '').replace(/[.,]$/, '').replace('.', ',');
+}
+
 // Compacte telling zoals in de export: "3p 1f 2s" (vaste volgorde, nul weg).
 function formatCounts(counts) {
-  return DRINKS.filter((d) => counts[d.code]).map((d) => `${counts[d.code]}${d.code}`).join(' ');
+  return DRINKS.filter((d) => counts[d.code]).map((d) => `${fmtAmount(counts[d.code])}${d.code}`).join(' ');
 }
 
 function fmtTime(iso) {
@@ -170,6 +179,15 @@ async function renderMain() {
     const bulkRow = document.getElementById('bulk-row');
     bulkRow.innerHTML = '';
     if (!hideBulk) {
+      // Bierpong eerst (enkel leiding, want 'ANDERE' is verborgen in de aspi-app).
+      // Opent een spelerskeuze-scherm i.p.v. meteen op jezelf te zetten.
+      const bp = document.createElement('button');
+      bp.type = 'button';
+      bp.className = 'bulk-btn';
+      bp.innerHTML = `${symbolHTML(BIERPONG)}<span class="bulk-btn__name">${BIERPONG.naam}</span>`;
+      bp.addEventListener('click', renderBierpong);
+      bulkRow.appendChild(bp);
+
       for (const b of BULK) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -461,6 +479,58 @@ async function confirmOthers() {
   await renderMain();
 }
 
+// --- Bierpong (enkel leiding) ----------------------------------------------
+
+const bierpongPlayers = new Set();
+
+async function renderBierpong() {
+  bierpongPlayers.clear();
+  const members = await store.getMembers(); // de leiding speelt zelf mee, dus niemand uitsluiten
+  const list = document.getElementById('bierpong-people');
+  list.innerHTML = '';
+  for (const m of members) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `<span class="tick">✓</span><span>${m.naam}</span>` + (m.host ? HOST_BADGE : '');
+    b.addEventListener('click', () => {
+      if (bierpongPlayers.has(m.id)) { bierpongPlayers.delete(m.id); b.classList.remove('is-picked'); }
+      else { bierpongPlayers.add(m.id); b.classList.add('is-picked'); }
+      updateBierpongSummary();
+    });
+    const li = document.createElement('li');
+    li.appendChild(b);
+    list.appendChild(li);
+  }
+  updateBierpongSummary();
+  show('bierpong');
+}
+
+function updateBierpongSummary() {
+  const summary = document.getElementById('bierpong-summary');
+  const confirm = document.getElementById('bierpong-confirm');
+  const n = bierpongPlayers.size;
+  if (n === 0) {
+    summary.textContent = `Spel = ${BIERPONG.totalPints} pinten · tik wie meespeelt`;
+    confirm.disabled = true; confirm.textContent = 'Zet';
+    return;
+  }
+  const per = BIERPONG.totalPints / n;
+  summary.textContent = `${n} ${n === 1 ? 'speler' : 'spelers'} → ${fmtAmount(per)} pint elk`;
+  confirm.disabled = false;
+  confirm.textContent = `Zet (${fmtAmount(per)}p p.p.)`;
+}
+
+async function confirmBierpong() {
+  if (bierpongPlayers.size === 0) return;
+  const me = await store.getCurrentUserId();
+  const players = [...bierpongPlayers];
+  const per = BIERPONG.totalPints / players.length;
+  const entries = await store.addBierpong({ players, registeredBy: me, totalPints: BIERPONG.totalPints });
+  await renderMain();
+  showUndo(`✓ Bierpong: ${fmtAmount(per)}p × ${players.length} ${players.length === 1 ? 'speler' : 'spelers'}`, entries.map((e) => e.id));
+  toast('Bierpong gezet');
+}
+
 // --- Postvak ---------------------------------------------------------------
 
 async function renderPostvak() {
@@ -474,9 +544,11 @@ async function renderPostvak() {
     const drink = DRINK_BY_CODE[n.drinkCode];
     const li = document.createElement('li');
     li.className = 'overview-row notif';
+    const aantal = n.aantal ?? 1;
+    const bron = aantal !== 1 ? ' (bierpong)' : ''; // enkel bierpong geeft een kommagetal
     const top = `<div class="notif__top">` +
       (n.seen ? '' : '<span class="unseen-dot"></span>') +
-      `<span class="notif__main">${n.door} zette 1 ${drink ? drink.naam : n.drinkCode} op jouw naam</span>` +
+      `<span class="notif__main">${n.door} zette ${fmtAmount(aantal)} ${drink ? drink.naam : n.drinkCode} op jouw naam${bron}</span>` +
       `<span class="notif__time">${fmtTime(n.tijdstip)}</span></div>`;
     li.innerHTML = top;
     if (n.status === 'pending_delete') {
@@ -569,10 +641,10 @@ async function renderEditRows() {
     row.className = 'edit-row';
     row.innerHTML = `<span class="edit-row__name">${rowSymHTML(d)}${d.naam}</span>`;
     const minus = document.createElement('button');
-    minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−'; minus.disabled = n === 0;
+    minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−'; minus.disabled = n <= 0;
     minus.addEventListener('click', () => store.hostRemoveOne(editPersonId, d.code, adminDate));
     const cnt = document.createElement('span');
-    cnt.className = 'edit-row__count'; cnt.textContent = n;
+    cnt.className = 'edit-row__count'; cnt.textContent = fmtAmount(n);
     const plus = document.createElement('button');
     plus.type = 'button'; plus.className = 'stepbtn'; plus.textContent = '+';
     plus.addEventListener('click', () => store.hostAddOne(editPersonId, d.code));
@@ -613,8 +685,9 @@ function buildLogGroup(label, entries, showName = true) {
   for (const e of entries) {
     const del = e.status === 'verwijderd';
     const k = `${e.personId}|${e.drinkCode}|${del ? 'd' : 'a'}`;
-    if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, del, times: [] });
+    if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, del, times: [], n: 0 });
     agg.get(k).times.push(e.tijdstip);
+    agg.get(k).n += (e.aantal ?? 1); // bierpong telt als kommagetal mee
   }
   const rows = [...agg.values()].sort((a, b) =>
     a.persoon.localeCompare(b.persoon, 'nl') ||
@@ -622,7 +695,7 @@ function buildLogGroup(label, entries, showName = true) {
     (DRINK_BY_CODE[a.code].order - DRINK_BY_CODE[b.code].order));
 
   // De badge telt enkel wat blijft staan (verwijderde niet meegerekend).
-  const blijft = entries.filter((e) => e.status !== 'verwijderd').length;
+  const blijft = fmtAmount(entries.filter((e) => e.status !== 'verwijderd').reduce((s, e) => s + (e.aantal ?? 1), 0));
 
   const li = document.createElement('li');
   const det = document.createElement('details');
@@ -644,7 +717,7 @@ function buildLogGroup(label, entries, showName = true) {
         (r.del ? '<span class="log-aggrow__del">🗑</span>' : '') +
         (showName ? `<span class="log-aggrow__name">${r.persoon}</span>` : '') +
         `<span class="log-aggrow__drink">${d ? d.naam : r.code}</span>` +
-        `<span class="log-aggrow__n">×${r.times.length}</span>` +
+        `<span class="log-aggrow__n">×${fmtAmount(r.n)}</span>` +
       `</div>` +
       `<div class="log-times">${tijden}</div>`;
     inner.appendChild(line);
@@ -831,7 +904,9 @@ async function renderAdminReport() {
     const s = stock[d.code];
     if (s && Number.isFinite(s.in) && Number.isFinite(s.rest)) {
       hasStock = true;
-      const z = (s.in - s.rest) - (registered[d.code] || 0);
+      // Afronden op 2 decimalen: bierpong maakt 'registered' decimaal, dus dit
+      // voorkomt zwevende-komma-ruis (bv. 0,0000001) in de zwerf.
+      const z = Math.round(((s.in - s.rest) - (registered[d.code] || 0)) * 100) / 100;
       if (z !== 0) zwerf[d.code] = z;
       if (z < 0) warn = true;
     }
@@ -1018,6 +1093,8 @@ document.getElementById('back-main').addEventListener('click', renderMain);
 document.getElementById('go-others').addEventListener('click', renderOthers);
 document.getElementById('others-back').addEventListener('click', renderMain);
 document.getElementById('others-confirm').addEventListener('click', confirmOthers);
+document.getElementById('bierpong-back').addEventListener('click', renderMain);
+document.getElementById('bierpong-confirm').addEventListener('click', confirmBierpong);
 document.getElementById('go-postvak').addEventListener('click', async () => { await renderPostvak(); await store.markNotificationsSeen(); });
 document.getElementById('postvak-back').addEventListener('click', renderMain);
 document.getElementById('go-admin').addEventListener('click', openAdmin);

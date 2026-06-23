@@ -15,6 +15,10 @@ create table if not exists public.consumptions (
 create index if not exists consumptions_tijdstip_idx on public.consumptions (tijdstip);
 create index if not exists consumptions_person_idx   on public.consumptions (person_id);
 
+-- Gewicht van een registratie. Normaal 1 (één drankje per rij). Bierpong verdeelt
+-- 10 pinten over de spelers, dus dan kan dit een kommagetal zijn (bv. 2.5).
+alter table public.consumptions add column if not exists aantal numeric not null default 1;
+
 -- Row Level Security aanzetten en de anon-rol toelaten te lezen/schrijven.
 -- Let op: dit is een vertrouwenssysteem zonder echte login. De anon-sleutel
 -- zit in de PWA en is dus publiek; wie de URL kent, kan in principe schrijven.

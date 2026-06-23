@@ -94,14 +94,33 @@ identiteit (`as1`) die nergens in de aspi-lijsten/export opduikt. Het **aspileid
 toont de **log van álle aspi's per uur** (sinds de laatste afrekening) — geen stats, geen
 drankknoppen; afrekenen/aanpassen/log-per-maand zitten onder ⚙️. In de **aspi-app** is de sectie
 **ANDERE** (bak/halve bak e.d.) volledig verborgen — niet voor de aspi's. Terminologie: overal
-**"drankleiding"** (de term "opper-host" wordt nergens nog gebruikt).
+**"drankleiding"** (de term "opper-host" wordt nergens nog gebruikt). Gewone aspis zien **geen
+stats-knop** (hun eigen log volstaat); de aspileiding ziet de stats wél, *"sinds de laatste
+afrekening"* (`getAspiOutstanding`).
+
+## 5c. Bierpong (enkel leiding)
+
+In de **ANDERE**-sectie staat **Bierpong** vóór bak/halve bak (enkel leiding, want ANDERE is
+verborgen in de aspi-app). Eén spel = **10 pinten**, **gelijk verdeeld** over de gekozen spelers
+(`BIERPONG.totalPints` in `members.js`). Klikken → spelerskeuze-scherm (`screen-bierpong`) →
+elke speler krijgt een pint-registratie met gewicht **`aantal = 10/N`** (kan een kommagetal zijn,
+bv. 2,5). De spelers krijgen de gewone in-app melding (`registered_by` = wie het ingaf) en zien
+de (decimale) pinten in hun log. Bierpong-pinten **tellen mee in de zwerf** (pinten uit de frigo).
+
+Decimale pinten werken via een nieuwe kolom **`consumptions.aantal numeric default 1`**: gewone
+registraties hebben `aantal = 1`, bierpong een kommagetal. De tellingen/log/zwerf sommeren
+`aantal` i.p.v. rijen te tellen; `fmtAmount()` toont het netjes met komma. **Robuust bij
+uitrol:** gewone registraties sturen `aantal` enkel mee als het ≠ 1 is en de fetches gebruiken
+`select=*`, dus de app blijft werken ook al is de `aantal`-kolom nog niet gedraaid — enkel
+**bierpong** vereist die kolom.
 
 ## 6. Openstaande punten
 
-1. **`supabase/schema.sql` opnieuw draaien** in Supabase (voor `app_config`-pincode, de
-   `aspi_pin`/`aspi_epoch`-kolommen **én de nieuwe tabel `aspi_settlements`**). Tot dan werken
-   8888/7777 via de config-terugval en faalt het afrekenen-synchroniseren stil (lokaal werkt
-   het wel, maar propageert pas zodra de tabel bestaat).
+1. **`supabase/schema.sql` opnieuw draaien** in Supabase bij elke schema-uitbreiding. Nodig voor:
+   `app_config`-pincode + `aspi_pin`/`aspi_epoch`, de tabel `aspi_settlements`, en de kolom
+   **`consumptions.aantal`** (voor bierpong). Het script is idempotent (`if not exists`) en wist
+   geen data. Tot een onderdeel gedraaid is, werkt de rest gewoon door; enkel díe functie
+   (afrekenen-sync resp. bierpong) propageert pas zodra de kolom/tabel bestaat.
 2. **Apart aspi-icoon** — er staat nu een gegenereerd icoon in `/aspi/` (zelfde beeld + subtiel
    "CK-aspi" onderaan), verwezen vanuit `aspi/manifest.json`/`aspi/index.html`/`aspi/sw.js`.
    Mauro kan `aspi/icon-192.png` / `aspi/icon-512.png` / `aspi/apple-touch-icon.png` vervangen

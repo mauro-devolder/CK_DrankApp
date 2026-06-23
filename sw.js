@@ -1,6 +1,6 @@
 // Minimale service worker: app-shell cachen zodat de app ook zonder bereik
 // opent. Bewust simpel gehouden voor de MVP.
-const CACHE = 'drank-v10';
+const CACHE = 'drank-v11';
 const PREFIX = 'drank-v'; // enkel eigen oude versies opruimen (niet de aspi-app: drank-aspi-v*)
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'app.js', 'store.js', 'members.js',
@@ -8,7 +8,7 @@ const ASSETS = [
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
   'img/pint.png', 'img/frisdrank.png', 'img/chips.png', 'img/water.png',
   'img/sterkbier.png', 'img/kriek.png', 'img/desperados.png',
-  'img/bak.png', 'img/halvebak.png',
+  'img/bak.png', 'img/halvebak.png', 'img/bierpong.png',
 ];
 
 self.addEventListener('install', (e) => {

@@ -143,6 +143,7 @@ export async function addConsumption({ personId, drinkCode, registeredBy }) {
     drinkCode,
     tijdstip: new Date().toISOString(),
     status: 'actief',
+    aantal: 1,
     synced: false,
   };
   all.push(entry);
@@ -159,7 +160,30 @@ export async function addMany({ personId, drinkCode, registeredBy, aantal }) {
   for (let i = 0; i < aantal; i++) {
     const e = {
       id: newId(), personId, registeredBy: registeredBy || personId,
-      drinkCode, tijdstip: new Date().toISOString(), status: 'actief', synced: false,
+      drinkCode, tijdstip: new Date().toISOString(), status: 'actief', aantal: 1, synced: false,
+    };
+    all.push(e); entries.push(e);
+  }
+  saveCons(all);
+  emit();
+  scheduleSync();
+  return entries;
+}
+
+// Bierpong: verdeel een spel (totalPints pinten) gelijk over de spelers. Elke
+// speler krijgt één pint-registratie met een (mogelijk decimaal) gewicht.
+// registeredBy = wie het ingaf, zodat de spelers een melding krijgen (behalve
+// die persoon zelf, als hij meespeelt).
+export async function addBierpong({ players, registeredBy, totalPints = 10 }) {
+  if (!players || !players.length) return [];
+  const per = totalPints / players.length;
+  const all = loadCons();
+  const entries = [];
+  const t = new Date().toISOString();
+  for (const pid of players) {
+    const e = {
+      id: newId(), personId: pid, registeredBy: registeredBy || pid,
+      drinkCode: 'p', tijdstip: t, status: 'actief', aantal: per, synced: false,
     };
     all.push(e); entries.push(e);
   }
@@ -209,7 +233,7 @@ export async function getTotalsForMonth(date = new Date()) {
   const totals = {};
   for (const c of activeForMonth(date)) {
     totals[c.personId] = totals[c.personId] || {};
-    totals[c.personId][c.drinkCode] = (totals[c.personId][c.drinkCode] || 0) + 1;
+    totals[c.personId][c.drinkCode] = (totals[c.personId][c.drinkCode] || 0) + (c.aantal ?? 1);
   }
   return totals;
 }
@@ -230,6 +254,7 @@ export async function getNotifications() {
       drinkCode: c.drinkCode,
       tijdstip: c.tijdstip,
       status: c.status,
+      aantal: c.aantal ?? 1,
       seen: seen.has(c.id),
     }));
 }
@@ -283,6 +308,7 @@ export async function getLogForMonth(date = new Date()) {
       drinkCode: c.drinkCode,
       tijdstip: c.tijdstip,
       status: c.status,
+      aantal: c.aantal ?? 1,
     }));
 }
 
@@ -290,7 +316,7 @@ export async function getLogForMonth(date = new Date()) {
 export async function getCountsForPerson(personId, date = new Date()) {
   const counts = {};
   for (const c of activeForMonth(date)) {
-    if (c.personId === personId) counts[c.drinkCode] = (counts[c.drinkCode] || 0) + 1;
+    if (c.personId === personId) counts[c.drinkCode] = (counts[c.drinkCode] || 0) + (c.aantal ?? 1);
   }
   return counts;
 }
@@ -382,8 +408,8 @@ export async function getAspiDebtsByMonth() {
     const total = {};
     for (const r of byMonth.get(maand)) {
       if (!perPerson.has(r.personId)) perPerson.set(r.personId, { personId: r.personId, naam: memberName(r.personId), counts: {} });
-      perPerson.get(r.personId).counts[r.drinkCode] = (perPerson.get(r.personId).counts[r.drinkCode] || 0) + 1;
-      total[r.drinkCode] = (total[r.drinkCode] || 0) + 1;
+      perPerson.get(r.personId).counts[r.drinkCode] = (perPerson.get(r.personId).counts[r.drinkCode] || 0) + (r.aantal ?? 1);
+      total[r.drinkCode] = (total[r.drinkCode] || 0) + (r.aantal ?? 1);
     }
     const list = [...perPerson.values()].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
     return { maand, perPerson: list, total };
@@ -408,6 +434,7 @@ export async function getAspiLog() {
       drinkCode: c.drinkCode,
       tijdstip: c.tijdstip,
       status: c.status,
+      aantal: c.aantal ?? 1,
     }));
 }
 

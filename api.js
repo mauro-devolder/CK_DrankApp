@@ -20,7 +20,7 @@ function headers(extra = {}) {
 }
 
 function toRow(c) {
-  return {
+  const row = {
     id: c.id,
     person_id: c.personId,
     registered_by: c.registeredBy,
@@ -28,6 +28,11 @@ function toRow(c) {
     tijdstip: c.tijdstip,
     status: c.status,
   };
+  // 'aantal' enkel meesturen als het afwijkt van 1 (bierpong). Zo blijven gewone
+  // registraties werken ook als de 'aantal'-kolom nog niet in de DB bestaat; de
+  // DB-default (1) vult de rest. Enkel bierpong vereist de nieuwe kolom.
+  if (c.aantal != null && c.aantal !== 1) row.aantal = c.aantal;
+  return row;
 }
 
 function fromRow(r) {
@@ -38,6 +43,7 @@ function fromRow(r) {
     drinkCode: r.drink_code,
     tijdstip: r.tijdstip,
     status: r.status,
+    aantal: r.aantal == null ? 1 : Number(r.aantal),
     synced: true,
     deleted: false,
   };
@@ -69,7 +75,7 @@ export async function deleteConsumptions(ids) {
 // en goedkeuringen ook naar andere toestellen propageren.
 export async function fetchRange(fromISO, toISO) {
   const q =
-    `?select=id,person_id,registered_by,drink_code,tijdstip,status` +
+    `?select=*` +
     `&tijdstip=gte.${encodeURIComponent(fromISO)}` +
     `&tijdstip=lt.${encodeURIComponent(toISO)}`;
   const res = await fetch(REST() + q, { headers: headers() });
@@ -85,7 +91,7 @@ export async function fetchAspiConsumptions(ids) {
   if (!ids || !ids.length) return [];
   const list = ids.map(encodeURIComponent).join(',');
   const q =
-    `?select=id,person_id,registered_by,drink_code,tijdstip,status` +
+    `?select=*` +
     `&person_id=in.(${list})`;
   const res = await fetch(REST() + q, { headers: headers() });
   if (!res.ok) throw new Error(`aspi cons ${res.status}: ${await res.text()}`);
