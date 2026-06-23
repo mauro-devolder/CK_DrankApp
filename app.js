@@ -145,8 +145,9 @@ async function renderMain() {
   document.getElementById('bulk-row').hidden = hideBulk;
   document.getElementById('go-postvak').hidden = hostOnly;
   document.getElementById('go-mylog').hidden = hostOnly;
-  document.getElementById('go-overview').hidden = hostOnly; // geen stats voor de aspileiding
-  document.getElementById('host-hint').hidden = !hostOnly;
+  // Gewone aspis zien geen stats (hun eigen log volstaat); de aspileiding wél
+  // (die toont de stats sinds de laatste afrekening).
+  document.getElementById('go-overview').hidden = store.currentGroup() === 'aspi' && !hostOnly;
   const hostLogWrap = document.getElementById('host-log-wrap');
   if (hostLogWrap) hostLogWrap.hidden = !hostOnly;
 
@@ -343,14 +344,31 @@ async function undoLast() {
 // --- Overzicht (iedereen) --------------------------------------------------
 
 async function renderOverview() {
-  const now = new Date();
-  document.getElementById('overview-title').textContent = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
-
-  const totals = await store.getTotalsForMonth(now);
   const meId = await store.getCurrentUserId();
+  const me = await store.getMemberById(meId);
   const list = document.getElementById('overview-list');
   const empty = document.getElementById('overview-empty');
   list.innerHTML = '';
+
+  // Aspileiding: stats per aspi sinds de laatste afrekening (i.p.v. per maand).
+  if (me && me.leidingOnly) {
+    document.getElementById('overview-title').textContent = 'Sinds de laatste afrekening';
+    const rows = (await store.getAspiOutstanding()).filter((r) => Object.keys(r.counts).length);
+    empty.hidden = rows.length > 0;
+    for (const r of rows) {
+      const li = document.createElement('li');
+      li.className = 'overview-row';
+      li.innerHTML = `<span class="overview-row__name">${r.naam}</span>` +
+        `<span class="overview-row__counts">${formatCounts(r.counts)}</span>`;
+      list.appendChild(li);
+    }
+    show('overview');
+    return;
+  }
+
+  const now = new Date();
+  document.getElementById('overview-title').textContent = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  const totals = await store.getTotalsForMonth(now);
 
   const group = store.currentGroup();
   const rows = [];
