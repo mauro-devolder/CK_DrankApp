@@ -1,6 +1,6 @@
 // Minimale service worker: app-shell cachen zodat de app ook zonder bereik
 // opent. Bewust simpel gehouden voor de MVP.
-const CACHE = 'drank-v7';
+const CACHE = 'drank-v8';
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'app.js', 'store.js', 'members.js',
   'api.js', 'config.js', 'manifest.json',

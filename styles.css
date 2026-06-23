@@ -56,8 +56,8 @@ button { font-family: inherit; cursor: pointer; }
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: max(env(safe-area-inset-top), 14px) 16px 14px;
+  gap: 8px;
+  padding: max(env(safe-area-inset-top), 14px) 12px 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
@@ -400,6 +400,7 @@ button { font-family: inherit; cursor: pointer; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 14px; box-shadow: var(--shadow); }
 .card__title { margin: 0 0 10px; font-size: 1.15rem; }
 .card__hint { margin: 0 0 12px; color: var(--muted); font-size: 0.9rem; }
+.card__subtitle { margin: 20px 0 6px; font-size: 1rem; font-weight: 700; border-top: 1px solid var(--line); padding-top: 16px; }
 .card__collapse {
   font-size: 1.15rem; font-weight: 700; cursor: pointer; list-style: none;
   display: flex; align-items: center; gap: 10px;

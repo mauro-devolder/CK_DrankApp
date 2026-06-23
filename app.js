@@ -20,6 +20,7 @@ const screens = {
   postvak: document.getElementById('screen-postvak'),
   admin: document.getElementById('screen-admin'),
   settings: document.getElementById('screen-settings'),
+  mylog: document.getElementById('screen-mylog'),
 };
 
 function show(name) {
@@ -407,6 +408,7 @@ async function renderAdmin() {
   await renderAdminStock();
   await renderAdminReport();
   await renderAdminLog();
+  await renderAdminPersonSelect();
   // Reset enkel voor de super-admin (Mauro).
   document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
@@ -487,7 +489,8 @@ function weekLabel(ms) {
 }
 
 // Aggregeer een groep tot één regel per persoon+drank: "Suzanne · Pint ×23".
-function buildLogGroup(label, entries) {
+// showName=false laat de naam weg (voor één-persoon-logs): gewoon "Pint ×23".
+function buildLogGroup(label, entries, showName = true) {
   const agg = new Map();
   for (const e of entries) {
     const k = `${e.personId}|${e.drinkCode}`;
@@ -511,7 +514,7 @@ function buildLogGroup(label, entries) {
     const line = document.createElement('div');
     line.className = 'log-aggrow';
     line.innerHTML =
-      `<span class="log-aggrow__name">${r.persoon}</span>` +
+      (showName ? `<span class="log-aggrow__name">${r.persoon}</span>` : '') +
       `<span class="log-aggrow__drink">${d ? d.naam : r.code}</span>` +
       `<span class="log-aggrow__n">×${r.n}</span>`;
     inner.appendChild(line);
@@ -521,14 +524,10 @@ function buildLogGroup(label, entries) {
   return li;
 }
 
-// Logboek: huidige week per dag, vorige weken per week. Inklapbaar.
-async function renderAdminLog() {
-  const entries = (await store.getLogForMonth(adminDate)).filter((e) => e.status === 'actief');
-  const list = document.getElementById('admin-log');
-  const empty = document.getElementById('admin-log-empty');
-  list.innerHTML = '';
-  empty.hidden = entries.length > 0;
-
+// Huidige week per dag, vorige weken per week. Inklapbaar.
+function buildGroupedLog(entries, listEl, emptyEl, showName = true) {
+  listEl.innerHTML = '';
+  emptyEl.hidden = entries.length > 0;
   const curWeek = weekStartMs(new Date());
   const days = new Map();   // huidige week → per dag
   const weeks = new Map();  // vorige weken → per week
@@ -542,13 +541,61 @@ async function renderAdminLog() {
       (weeks.get(wk) || weeks.set(wk, []).get(wk)).push(e);
     }
   }
-
   for (const dk of [...days.keys()].sort((a, b) => b - a)) {
-    list.appendChild(buildLogGroup(dayLabel(dk), days.get(dk)));
+    listEl.appendChild(buildLogGroup(dayLabel(dk), days.get(dk), showName));
   }
   for (const wk of [...weeks.keys()].sort((a, b) => b - a)) {
-    list.appendChild(buildLogGroup(weekLabel(wk), weeks.get(wk)));
+    listEl.appendChild(buildLogGroup(weekLabel(wk), weeks.get(wk), showName));
   }
+}
+
+// Actieve log-regels van een maand, optioneel voor één persoon.
+async function activeLog(date, personId) {
+  let log = (await store.getLogForMonth(date)).filter((e) => e.status === 'actief');
+  if (personId) log = log.filter((e) => e.personId === personId);
+  return log;
+}
+
+async function renderAdminLog() {
+  buildGroupedLog(await activeLog(adminDate), document.getElementById('admin-log'),
+    document.getElementById('admin-log-empty'), true);
+}
+
+// Host: log van één gekozen persoon (controle of die zijn drankjes intikte).
+let logPersonId = '';
+async function renderAdminPersonSelect() {
+  const sel = document.getElementById('log-person');
+  const members = await store.getMembers();
+  const prev = logPersonId;
+  sel.innerHTML = '<option value="">Kies een persoon…</option>';
+  for (const m of members) {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.naam;
+    sel.appendChild(o);
+  }
+  logPersonId = members.some((m) => m.id === prev) ? prev : '';
+  sel.value = logPersonId;
+  await renderAdminPersonLog();
+}
+async function renderAdminPersonLog() {
+  const listEl = document.getElementById('admin-person-log');
+  const emptyEl = document.getElementById('admin-person-log-empty');
+  if (!logPersonId) {
+    listEl.innerHTML = '';
+    emptyEl.hidden = false;
+    emptyEl.textContent = 'Kies een persoon om hun log te zien.';
+    return;
+  }
+  emptyEl.textContent = 'Niets getikt deze maand.';
+  buildGroupedLog(await activeLog(adminDate, logPersonId), listEl, emptyEl, false);
+}
+
+// Persoonlijke log (iedereen): de eigen drankjes deze maand.
+async function renderMyLog() {
+  const me = await store.getCurrentUserId();
+  buildGroupedLog(await activeLog(new Date(), me), document.getElementById('mylog-list'),
+    document.getElementById('mylog-empty'), false);
+  show('mylog');
 }
 
 async function renderAdminRequests() {
@@ -703,6 +750,9 @@ store.subscribe(() => {
 document.getElementById('undo-btn').addEventListener('click', undoLast);
 document.getElementById('who-am-i').addEventListener('click', renderSettings);
 document.getElementById('go-overview').addEventListener('click', renderOverview);
+document.getElementById('go-mylog').addEventListener('click', renderMyLog);
+document.getElementById('mylog-back').addEventListener('click', renderMain);
+document.getElementById('log-person').addEventListener('change', (e) => { logPersonId = e.target.value; renderAdminPersonLog(); });
 document.getElementById('back-main').addEventListener('click', renderMain);
 document.getElementById('go-others').addEventListener('click', renderOthers);
 document.getElementById('others-back').addEventListener('click', renderMain);
