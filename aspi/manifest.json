@@ -1,6 +1,6 @@
 {
-  "name": "Aspi Drankjes",
-  "short_name": "Aspi",
+  "name": "Drank_Aspi",
+  "short_name": "Drank_Aspi",
   "description": "Drankjesverbruik van de aspi's bijhouden.",
   "start_url": ".",
   "scope": ".",
