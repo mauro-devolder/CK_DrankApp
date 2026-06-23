@@ -42,7 +42,11 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 18px;
+  /* Geen "dubbeltik = inzoomen": een snelle tweede tik op een drankknop mag
+     nooit de pagina laten zoomen. Knijpen/scrollen blijft gewoon werken. */
+  touch-action: manipulation;
 }
+button, summary, label, input, select, textarea, .chip { touch-action: manipulation; }
 
 .screen {
   min-height: 100dvh;
@@ -408,11 +412,22 @@ button { font-family: inherit; cursor: pointer; }
 .card__collapse::-webkit-details-marker { display: none; }
 .card__collapse::before { content: '▸'; color: var(--muted); transition: transform 0.15s; }
 details[open] > .card__collapse::before { transform: rotate(90deg); }
-#edit-details[open] .card__hint { margin-top: 14px; }
+/* Lucht tussen de titel en de inhoud zodra een sectie openklapt. */
+details[open] > .card__collapse { margin-bottom: 14px; }
+
+/* Klein drankje-symbool (foto of emoji) in de lijstjes voorraad/per persoon. */
+.row-sym {
+  width: 30px; height: 30px; object-fit: contain; flex: none;
+  background: #fff; border-radius: 7px; padding: 2px;
+}
+.row-sym--emoji {
+  background: none; padding: 0; font-size: 1.4rem; line-height: 1;
+  display: inline-grid; place-items: center;
+}
 
 .stock-grid { display: flex; flex-direction: column; gap: 10px; }
 .stock-row { display: flex; align-items: center; gap: 10px; }
-.stock-row__name { flex: 1; font-weight: 600; }
+.stock-row__name { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .stock-row label { font-size: 0.8rem; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .stock-row input {
   width: 72px; padding: 10px; font-size: 1rem; text-align: right;
@@ -454,7 +469,7 @@ details[open] > .card__collapse::before { transform: rotate(90deg); }
 }
 .edit-rows { display: flex; flex-direction: column; gap: 8px; }
 .edit-row { display: flex; align-items: center; gap: 12px; }
-.edit-row__name { flex: 1; font-weight: 600; }
+.edit-row__name { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .edit-row__count { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stepbtn {
   width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
@@ -481,11 +496,21 @@ details[open] > .log-sum::before { transform: rotate(90deg); }
   padding: 2px 10px; font-size: 0.82rem;
 }
 .log-agg { padding: 4px 14px 12px; display: flex; flex-direction: column; gap: 4px; }
-.log-aggrow { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); }
+.log-aggrow { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line); }
 .log-aggrow:first-child { border-top: none; }
+.log-aggrow__head { display: flex; align-items: baseline; gap: 10px; }
+.log-aggrow__del { flex: none; }
 .log-aggrow__name { font-weight: 600; min-width: 90px; }
 .log-aggrow__drink { flex: 1; color: var(--muted); }
 .log-aggrow__n { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Tijdstippen onder elke regel: "22:17 · 22:34 · 23:01" */
+.log-times { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.5; }
+.log-times:empty { display: none; }
+/* Verwijderde drankjes: doorstreept en lichter, met 🗑 ervoor. */
+.log-aggrow.is-del { opacity: 0.65; }
+.log-aggrow.is-del .log-aggrow__name,
+.log-aggrow.is-del .log-aggrow__drink,
+.log-aggrow.is-del .log-times { text-decoration: line-through; }
 
 /* ===== Toast ===== */
 .toast {

@@ -129,10 +129,9 @@
         <button id="month-next" class="iconbtn" type="button" aria-label="Volgende maand">→</button>
       </div>
 
-      <section class="card">
+      <section id="admin-requests-card" class="card" hidden>
         <h3 class="card__title">Verwijderverzoeken</h3>
         <ul id="admin-requests" class="overview-list"></ul>
-        <p id="admin-requests-empty" class="overview-empty" hidden>Geen openstaande verzoeken.</p>
       </section>
 
       <section class="card">
@@ -145,30 +144,36 @@
       </section>
 
       <section class="card">
-        <h3 class="card__title">Log</h3>
-        <p class="card__hint">Deze week per dag, eerdere weken per week. Tik om open te klappen. (Een dag/week loopt van maandag 08:00 tot de maandag erna.)</p>
-        <ul id="admin-log" class="log-list"></ul>
-        <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd deze maand.</p>
+        <details>
+          <summary class="card__collapse">Log</summary>
+          <p class="card__hint">Deze week per dag, eerdere weken per week. Tik om open te klappen. Per groep zie je het uur van elk drankje. (Een dag/week loopt van maandag 08:00 tot de maandag erna.)</p>
+          <ul id="admin-log" class="log-list"></ul>
+          <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd deze maand.</p>
 
-        <h4 class="card__subtitle">Log van één persoon</h4>
-        <p class="card__hint">Controleer of iemand zijn drankjes wel heeft ingetikt.</p>
-        <select id="log-person" class="select"></select>
-        <ul id="admin-person-log" class="log-list"></ul>
-        <p id="admin-person-log-empty" class="overview-empty">Kies een persoon om hun log te zien.</p>
+          <h4 class="card__subtitle">Log van één persoon</h4>
+          <p class="card__hint">Controleer of iemand zijn drankjes wel heeft ingetikt.</p>
+          <select id="log-person" class="select"></select>
+          <ul id="admin-person-log" class="log-list"></ul>
+          <p id="admin-person-log-empty" class="overview-empty">Kies een persoon om hun log te zien.</p>
+        </details>
       </section>
 
       <section class="card">
-        <h3 class="card__title">Voorraad</h3>
-        <p class="card__hint">Vul in per drankje: <b>in</b> (begin) en <b>rest</b> (geteld op het einde).</p>
-        <div id="admin-stock" class="stock-grid"></div>
+        <details>
+          <summary class="card__collapse">Voorraad</summary>
+          <p class="card__hint">Vul in per drankje: <b>in</b> (begin) en <b>rest</b> (geteld op het einde).</p>
+          <div id="admin-stock" class="stock-grid"></div>
+        </details>
       </section>
 
       <section class="card">
-        <h3 class="card__title">Afrekening &amp; export</h3>
-        <ul id="admin-overview" class="overview-list"></ul>
-        <p id="admin-zwerf" class="zwerf-line"></p>
-        <textarea id="export-text" class="export" readonly rows="8"></textarea>
-        <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
+        <details open>
+          <summary class="card__collapse">Afrekening &amp; export</summary>
+          <ul id="admin-overview" class="overview-list"></ul>
+          <p id="admin-zwerf" class="zwerf-line"></p>
+          <textarea id="export-text" class="export" readonly rows="8"></textarea>
+          <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
+        </details>
       </section>
 
       <section id="admin-reset-card" class="card card--danger" hidden>

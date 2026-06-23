@@ -10,6 +10,13 @@ function symbolHTML(item) {
     : `<span class="drink-btn__emoji">${item.emoji}</span>`;
 }
 
+// Klein symbool voor lijstjes (voorraad, per persoon): foto of emoji, compact.
+function rowSymHTML(item) {
+  return item.img
+    ? `<img class="row-sym" src="${item.img}" alt="">`
+    : `<span class="row-sym row-sym--emoji">${item.emoji}</span>`;
+}
+
 const UNDO_MS = 60_000; // venster om zelf te corrigeren zonder host
 
 const screens = {
@@ -50,6 +57,13 @@ function fmtTime(iso) {
   const d = new Date(iso);
   const p = (n) => String(n).padStart(2, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Enkel het uur: "22:17".
+function fmtClock(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // --- Onboarding ------------------------------------------------------------
@@ -451,7 +465,7 @@ async function renderEditRows() {
     const n = counts[d.code] || 0;
     const row = document.createElement('div');
     row.className = 'edit-row';
-    row.innerHTML = `<span class="edit-row__name">${d.emoji} ${d.naam}</span>`;
+    row.innerHTML = `<span class="edit-row__name">${rowSymHTML(d)}${d.naam}</span>`;
     const minus = document.createElement('button');
     minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−'; minus.disabled = n === 0;
     minus.addEventListener('click', () => store.hostRemoveOne(editPersonId, d.code, adminDate));
@@ -488,35 +502,48 @@ function weekLabel(ms) {
   return `Week ${s.getDate()} ${MONTHS[s.getMonth()].slice(0, 3)} – ${e.getDate()} ${MONTHS[e.getMonth()].slice(0, 3)}`;
 }
 
-// Aggregeer een groep tot één regel per persoon+drank: "Suzanne · Pint ×23".
-// showName=false laat de naam weg (voor één-persoon-logs): gewoon "Pint ×23".
+// Aggregeer een groep per persoon+drank en toon de tijdstippen eronder:
+// "Suzanne · Pint ×3 — 22:17 · 22:34 · 23:01". Verwijderde drankjes komen als
+// aparte, doorstreepte regel (met 🗑) zodat je ziet wat er weg is.
+// showName=false laat de naam weg (voor één-persoon-logs).
 function buildLogGroup(label, entries, showName = true) {
   const agg = new Map();
   for (const e of entries) {
-    const k = `${e.personId}|${e.drinkCode}`;
-    if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, n: 0 });
-    agg.get(k).n++;
+    const del = e.status === 'verwijderd';
+    const k = `${e.personId}|${e.drinkCode}|${del ? 'd' : 'a'}`;
+    if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, del, times: [] });
+    agg.get(k).times.push(e.tijdstip);
   }
   const rows = [...agg.values()].sort((a, b) =>
     a.persoon.localeCompare(b.persoon, 'nl') ||
+    (a.del - b.del) ||
     (DRINK_BY_CODE[a.code].order - DRINK_BY_CODE[b.code].order));
+
+  // De badge telt enkel wat blijft staan (verwijderde niet meegerekend).
+  const blijft = entries.filter((e) => e.status !== 'verwijderd').length;
 
   const li = document.createElement('li');
   const det = document.createElement('details');
   const sum = document.createElement('summary');
   sum.className = 'log-sum';
-  sum.innerHTML = `<span>${label}</span><span class="log-sum__count">${entries.length}</span>`;
+  sum.innerHTML = `<span>${label}</span><span class="log-sum__count">${blijft}</span>`;
   det.appendChild(sum);
   const inner = document.createElement('div');
   inner.className = 'log-agg';
   for (const r of rows) {
     const d = DRINK_BY_CODE[r.code];
+    r.times.sort(); // ISO-tekst sorteert chronologisch
+    const tijden = r.times.map(fmtClock).join(' · ');
     const line = document.createElement('div');
-    line.className = 'log-aggrow';
+    line.className = 'log-aggrow' + (r.del ? ' is-del' : '');
     line.innerHTML =
-      (showName ? `<span class="log-aggrow__name">${r.persoon}</span>` : '') +
-      `<span class="log-aggrow__drink">${d ? d.naam : r.code}</span>` +
-      `<span class="log-aggrow__n">×${r.n}</span>`;
+      `<div class="log-aggrow__head">` +
+        (r.del ? '<span class="log-aggrow__del">🗑</span>' : '') +
+        (showName ? `<span class="log-aggrow__name">${r.persoon}</span>` : '') +
+        `<span class="log-aggrow__drink">${d ? d.naam : r.code}</span>` +
+        `<span class="log-aggrow__n">×${r.times.length}</span>` +
+      `</div>` +
+      `<div class="log-times">${tijden}</div>`;
     inner.appendChild(line);
   }
   det.appendChild(inner);
@@ -549,15 +576,16 @@ function buildGroupedLog(entries, listEl, emptyEl, showName = true) {
   }
 }
 
-// Actieve log-regels van een maand, optioneel voor één persoon.
-async function activeLog(date, personId) {
-  let log = (await store.getLogForMonth(date)).filter((e) => e.status === 'actief');
+// Log-regels van een maand (incl. verwijderde, voor het tijdstip-overzicht),
+// optioneel voor één persoon.
+async function fullLog(date, personId) {
+  let log = await store.getLogForMonth(date);
   if (personId) log = log.filter((e) => e.personId === personId);
   return log;
 }
 
 async function renderAdminLog() {
-  buildGroupedLog(await activeLog(adminDate), document.getElementById('admin-log'),
+  buildGroupedLog(await fullLog(adminDate), document.getElementById('admin-log'),
     document.getElementById('admin-log-empty'), true);
 }
 
@@ -587,23 +615,23 @@ async function renderAdminPersonLog() {
     return;
   }
   emptyEl.textContent = 'Niets getikt deze maand.';
-  buildGroupedLog(await activeLog(adminDate, logPersonId), listEl, emptyEl, false);
+  buildGroupedLog(await fullLog(adminDate, logPersonId), listEl, emptyEl, false);
 }
 
 // Persoonlijke log (iedereen): de eigen drankjes deze maand.
 async function renderMyLog() {
   const me = await store.getCurrentUserId();
-  buildGroupedLog(await activeLog(new Date(), me), document.getElementById('mylog-list'),
+  buildGroupedLog(await fullLog(new Date(), me), document.getElementById('mylog-list'),
     document.getElementById('mylog-empty'), false);
   show('mylog');
 }
 
 async function renderAdminRequests() {
   const reqs = await store.getPendingDeletes();
+  // Hele kaart verbergen als er niets openstaat — scheelt ruis in beheer.
+  document.getElementById('admin-requests-card').hidden = reqs.length === 0;
   const list = document.getElementById('admin-requests');
-  const empty = document.getElementById('admin-requests-empty');
   list.innerHTML = '';
-  empty.hidden = reqs.length > 0;
   for (const r of reqs) {
     const drink = DRINK_BY_CODE[r.drinkCode];
     const li = document.createElement('li');
@@ -630,7 +658,7 @@ async function renderAdminStock() {
     const s = stock[d.code] || {};
     const row = document.createElement('div');
     row.className = 'stock-row';
-    row.innerHTML = `<span class="stock-row__name">${d.emoji} ${d.naam}</span>`;
+    row.innerHTML = `<span class="stock-row__name">${rowSymHTML(d)}${d.naam}</span>`;
     for (const type of ['in', 'rest']) {
       const label = document.createElement('label');
       const val = Number.isFinite(s[type]) ? s[type] : '';
