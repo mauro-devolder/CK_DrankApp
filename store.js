@@ -571,6 +571,8 @@ export async function syncAspi() {
 
 let syncing = false;
 let syncTimer = null;
+let resetting = false; // true terwijl een volledige reset loopt: blokkeert syncs
+let resetToken = 0;    // bumpt bij elke reset; maakt een lopende sync ongeldig
 
 function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 400); }
 
@@ -584,8 +586,9 @@ function monthBounds(date = new Date()) {
 }
 
 export async function syncNow() {
-  if (syncing || !api.isConfigured() || !navigator.onLine) return;
+  if (syncing || resetting || !api.isConfigured() || !navigator.onLine) return;
   syncing = true;
+  const token = resetToken; // als er tijdens deze sync gereset wordt, niets terugschrijven
   try {
     // 1) Pushen wat nog niet gesynct is (adds, verwijderingen, statuswijzigingen).
     const toPush = loadCons().filter((c) => !c.synced);
@@ -595,6 +598,10 @@ export async function syncNow() {
     // 2) Ophalen wat anderen deze maand deden.
     const { from, to } = monthBounds();
     const server = await api.fetchRange(from, to);
+
+    // Werd er tijdens deze sync gereset? Dan is onze in-memory data verouderd:
+    // stoppen zonder iets weg te schrijven (anders zetten we de gewiste data terug).
+    if (token !== resetToken) return;
 
     // 3) Opnieuw inladen vóór het wegschrijven: zo behouden we registraties die
     //    TIJDENS de sync zijn toegevoegd (anders gaat een tik tijdens het
@@ -650,19 +657,32 @@ async function syncConfig() {
 }
 
 // Volledige reset: alle registraties én voorraad wissen (cloud + lokaal).
+// Gecoördineerd met de auto-sync: nieuwe syncs worden geblokkeerd (resetting),
+// een lopende sync wordt ongeldig (resetToken) zodat hij niets terugschrijft, en
+// we wachten eerst tot een actieve sync klaar is — zo kan de zopas gewiste data
+// niet door een sync teruggezet worden op dit toestel.
 export async function resetAll() {
   if (!api.isConfigured() || !navigator.onLine) {
     throw new Error('offline'); // reset moet de cloud raken, anders synct alles terug
   }
-  await api.deleteAllConsumptions();
-  await api.deleteAllStock();
-  await api.deleteAllSettlements();
-  localStorage.removeItem(KEY_CONS);
-  localStorage.removeItem(KEY_STOCK);
-  localStorage.removeItem(KEY_SEEN);
-  localStorage.removeItem(KEY_ASPI_CONS);
-  localStorage.removeItem(KEY_SETTLE);
-  emit();
+  resetting = true;  // blokkeer nieuwe syncs
+  resetToken++;      // maak een eventueel lopende sync ongeldig
+  try {
+    // Wacht tot een lopende sync klaar is (max ~3s), zodat een push niet net na
+    // het wissen alsnog rijen terugzet.
+    for (let i = 0; i < 30 && syncing; i++) await new Promise((r) => setTimeout(r, 100));
+    await api.deleteAllConsumptions();
+    await api.deleteAllStock();
+    await api.deleteAllSettlements();
+    localStorage.removeItem(KEY_CONS);
+    localStorage.removeItem(KEY_STOCK);
+    localStorage.removeItem(KEY_SEEN);
+    localStorage.removeItem(KEY_ASPI_CONS);
+    localStorage.removeItem(KEY_SETTLE);
+    emit();
+  } finally {
+    resetting = false; // syncs weer toelaten
+  }
 }
 
 export function init() {
