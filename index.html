@@ -107,27 +107,31 @@
       <span class="iconbtn iconbtn--ghost">←</span>
     </header>
     <main class="others">
-      <p class="others__step">1 · Hoeveel pinten heeft het spel?</p>
-      <div class="ds-count">
-        <button id="ds-minus" class="stepbtn" type="button" aria-label="Minder">−</button>
-        <span id="ds-total" class="ds-count__val">10</span>
-        <button id="ds-plus" class="stepbtn" type="button" aria-label="Meer">+</button>
-        <span class="ds-count__unit">pinten</span>
+      <div id="ds-phase-select">
+        <p class="others__step">1 · Hoeveel pinten heeft het spel?</p>
+        <div class="ds-count">
+          <button id="ds-minus" class="stepbtn" type="button" aria-label="Minder">−</button>
+          <span id="ds-total" class="ds-count__val">10</span>
+          <button id="ds-plus" class="stepbtn" type="button" aria-label="Meer">+</button>
+          <span class="ds-count__unit">pinten</span>
+        </div>
+
+        <p class="others__step">2 · Wie speelt mee?</p>
+        <ul id="drankspel-people" class="pick-list"></ul>
       </div>
 
-      <p class="others__step">2 · Wie speelt mee?</p>
-      <ul id="drankspel-people" class="pick-list"></ul>
-
-      <p class="others__step">3 · Verdelen</p>
-      <div class="ds-mode">
-        <button id="ds-mode-equal" class="ds-mode__btn is-active" type="button">Gelijk verdeeld</button>
-        <button id="ds-mode-each" class="ds-mode__btn" type="button">Per persoon</button>
+      <div id="ds-phase-split" hidden>
+        <p class="others__step">Hoe verdelen?</p>
+        <div class="ds-mode">
+          <button id="ds-mode-equal" class="ds-mode__btn is-active" type="button">Gelijk verdeeld</button>
+          <button id="ds-mode-each" class="ds-mode__btn" type="button">Per persoon</button>
+        </div>
+        <div id="ds-each" class="ds-each" hidden></div>
       </div>
-      <div id="ds-each" class="ds-each" hidden></div>
     </main>
     <div class="undo-bar">
       <span id="drankspel-summary" class="undo-bar__text">Tik wie meespeelt</span>
-      <button id="drankspel-confirm" class="undo-bar__btn" type="button" disabled>Zet</button>
+      <button id="drankspel-confirm" class="undo-bar__btn" type="button" disabled>Volgende</button>
     </div>
   </section>
 

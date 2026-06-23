@@ -486,6 +486,7 @@ async function confirmOthers() {
 let dsTotal = DRANKSPEL.defaultPints;     // gekozen aantal pinten voor het spel
 const dsPlayers = new Set();              // wie meespeelt
 let dsMode = 'equal';                     // 'equal' | 'each'
+let dsPhase = 'select';                   // 'select' (pinten + spelers) | 'split' (verdelen)
 const dsShares = new Map();               // personId -> aandeel (enkel in 'each')
 const dsNames = new Map();                // personId -> naam (voor de per-persoon-rijen)
 
@@ -498,10 +499,13 @@ async function renderDrankspel() {
   dsShares.clear();
   dsNames.clear();
   dsMode = 'equal';
+  dsPhase = 'select';
   document.getElementById('ds-total').textContent = dsTotal;
   document.getElementById('ds-mode-equal').classList.add('is-active');
   document.getElementById('ds-mode-each').classList.remove('is-active');
   document.getElementById('ds-each').hidden = true;
+  document.getElementById('ds-phase-select').hidden = false;
+  document.getElementById('ds-phase-split').hidden = true;
 
   const members = await store.getMembers(); // de leiding speelt zelf mee, dus niemand uitsluiten
   const list = document.getElementById('drankspel-people');
@@ -550,6 +554,28 @@ function changeDsTotal(delta) {
   updateDrankspelSummary();
 }
 
+// Wissel tussen fase 'select' (pinten + spelers) en 'split' (verdelen).
+function setDsPhase(phase) {
+  dsPhase = phase;
+  document.getElementById('ds-phase-select').hidden = phase !== 'select';
+  document.getElementById('ds-phase-split').hidden = phase !== 'split';
+  if (phase === 'split') setDsMode('equal'); // standaard gelijk verdeeld (ververst ook de samenvatting)
+  else updateDrankspelSummary();
+  window.scrollTo(0, 0);
+}
+
+// Primaire knop onderaan: in 'select' = 'Volgende', in 'split' = 'Zet'.
+function drankspelPrimary() {
+  if (dsPhase === 'select') { if (dsPlayers.size) setDsPhase('split'); }
+  else confirmDrankspel();
+}
+
+// Terug-pijl: vanuit 'split' terug naar 'select', anders het scherm verlaten.
+function drankspelBack() {
+  if (dsPhase === 'split') setDsPhase('select');
+  else renderMain();
+}
+
 // Per-persoon-rijen: enkel de meespelers, elk met − [aandeel] + (stap 0,5).
 function renderDsEach() {
   const wrap = document.getElementById('ds-each');
@@ -580,15 +606,20 @@ function updateDrankspelSummary() {
   const summary = document.getElementById('drankspel-summary');
   const confirm = document.getElementById('drankspel-confirm');
   const n = dsPlayers.size;
-  if (n === 0) {
-    summary.textContent = 'Tik wie meespeelt';
-    confirm.disabled = true; confirm.textContent = 'Zet';
+
+  // Fase 1: pinten + spelers kiezen -> knop 'Volgende'.
+  if (dsPhase === 'select') {
+    confirm.textContent = 'Volgende';
+    if (n === 0) { summary.textContent = 'Tik wie meespeelt'; confirm.disabled = true; }
+    else { summary.textContent = `${n} ${n === 1 ? 'speler' : 'spelers'} · ${dsTotal} pinten`; confirm.disabled = false; }
     return;
   }
+
+  // Fase 2: verdelen -> knop 'Zet'.
   if (dsMode === 'equal') {
     const per = dsTotal / n;
     summary.textContent = `${n} ${n === 1 ? 'speler' : 'spelers'} → ${fmtAmount(per)} pint elk`;
-    confirm.disabled = false;
+    confirm.disabled = n === 0;
     confirm.textContent = `Zet (${fmtAmount(per)}p p.p.)`;
   } else {
     const sum = dsSum();
@@ -1178,8 +1209,8 @@ document.getElementById('back-main').addEventListener('click', renderMain);
 document.getElementById('go-others').addEventListener('click', renderOthers);
 document.getElementById('others-back').addEventListener('click', renderMain);
 document.getElementById('others-confirm').addEventListener('click', confirmOthers);
-document.getElementById('drankspel-back').addEventListener('click', renderMain);
-document.getElementById('drankspel-confirm').addEventListener('click', confirmDrankspel);
+document.getElementById('drankspel-back').addEventListener('click', drankspelBack);
+document.getElementById('drankspel-confirm').addEventListener('click', drankspelPrimary);
 document.getElementById('ds-minus').addEventListener('click', () => changeDsTotal(-1));
 document.getElementById('ds-plus').addEventListener('click', () => changeDsTotal(1));
 document.getElementById('ds-mode-equal').addEventListener('click', () => setDsMode('equal'));
