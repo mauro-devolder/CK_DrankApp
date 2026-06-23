@@ -533,7 +533,8 @@ function buildLogGroup(label, entries, showName = true) {
   for (const r of rows) {
     const d = DRINK_BY_CODE[r.code];
     r.times.sort(); // ISO-tekst sorteert chronologisch
-    const tijden = r.times.map(fmtClock).join(' · ');
+    // Unieke uren: een bak (24 pinten in 1 tik) toont zo "11:47" i.p.v. 24×.
+    const tijden = [...new Set(r.times.map(fmtClock))].join(' · ');
     const line = document.createElement('div');
     line.className = 'log-aggrow' + (r.del ? ' is-del' : '');
     line.innerHTML =
