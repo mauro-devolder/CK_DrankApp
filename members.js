@@ -82,10 +82,11 @@ export const BULK = [
   { id: 'bak',       naam: 'Bak',       code: 'p', aantal: 24, emoji: '📦', kleur: '#8a5a22', img: 'img/bak.png' },
 ];
 
-// Bierpong (enkel leiding — staat in de 'ANDERE'-sectie, die in de aspi-app
-// verborgen is). Eén spel = TOTAL_PINTS pinten, gelijk verdeeld over de spelers
-// (kan dus een kommagetal per persoon worden). Opent een spelerskeuze-scherm.
-export const BIERPONG = {
-  id: 'bierpong', naam: 'Bierpong', code: 'p', emoji: '🍺', kleur: '#c0314f',
-  img: 'img/bierpong.png', totalPints: 10,
+// Drankspel (enkel leiding — staat in de 'ANDERE'-sectie, die in de aspi-app
+// verborgen is). De leiding kiest het aantal pinten van het spel, wie meedoet, en
+// verdeelt 'gelijk' of 'per persoon'. Elke deelnemer krijgt zo een (mogelijk
+// decimaal) aantal pinten. Opent het drankspel-scherm.
+export const DRANKSPEL = {
+  id: 'drankspel', naam: 'Drankspel', code: 'p', emoji: '🍺', kleur: '#c0314f',
+  img: 'img/bierpong.png', defaultPints: 10,
 };

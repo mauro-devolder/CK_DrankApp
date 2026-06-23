@@ -98,17 +98,20 @@ drankknoppen; afrekenen/aanpassen/log-per-maand zitten onder ⚙️. In de **asp
 stats-knop** (hun eigen log volstaat); de aspileiding ziet de stats wél, *"sinds de laatste
 afrekening"* (`getAspiOutstanding`).
 
-## 5c. Bierpong (enkel leiding)
+## 5c. Drankspel (enkel leiding)
 
-In de **ANDERE**-sectie staat **Bierpong** vóór bak/halve bak (enkel leiding, want ANDERE is
-verborgen in de aspi-app). Eén spel = **10 pinten**, **gelijk verdeeld** over de gekozen spelers
-(`BIERPONG.totalPints` in `members.js`). Klikken → spelerskeuze-scherm (`screen-bierpong`) →
-elke speler krijgt een pint-registratie met gewicht **`aantal = 10/N`** (kan een kommagetal zijn,
-bv. 2,5). De spelers krijgen de gewone in-app melding (`registered_by` = wie het ingaf) en zien
-de (decimale) pinten in hun log. Bierpong-pinten **tellen mee in de zwerf** (pinten uit de frigo).
+In de **ANDERE**-sectie staat **Drankspel** vóór bak/halve bak (enkel leiding, want ANDERE is
+verborgen in de aspi-app). Klikken → `screen-drankspel` met drie stappen: **(1)** aantal pinten
+van het spel (stepper, default `DRANKSPEL.defaultPints` = 10), **(2)** wie meespeelt, **(3)**
+verdelen: **Gelijk verdeeld** (standaard, totaal/N per speler) of **Per persoon** (toont enkel de
+meespelers met − [aandeel] + in stappen van 0,5; start vanaf de gelijke verdeling). Bij bevestigen
+krijgt elke deelnemer een pint-registratie met zijn aandeel via `store.addDrankspel({ shares })`
+(`shares = [{personId, aantal}]`, aantal mag decimaal zijn). De deelnemers krijgen de gewone
+in-app melding (`registered_by` = wie het ingaf) en zien de (decimale) pinten in hun log; ze
+**tellen mee in de zwerf** (pinten uit de frigo).
 
 Decimale pinten werken via een nieuwe kolom **`consumptions.aantal numeric default 1`**: gewone
-registraties hebben `aantal = 1`, bierpong een kommagetal. De tellingen/log/zwerf sommeren
+registraties hebben `aantal = 1`, een drankspel een kommagetal. De tellingen/log/zwerf sommeren
 `aantal` i.p.v. rijen te tellen; `fmtAmount()` toont het netjes met komma. **Robuust bij
 uitrol:** gewone registraties sturen `aantal` enkel mee als het ≠ 1 is en de fetches gebruiken
 `select=*`, dus de app blijft werken ook al is de `aantal`-kolom nog niet gedraaid — enkel

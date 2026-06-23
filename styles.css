@@ -571,3 +571,18 @@ details[open] > .log-sum::before { transform: rotate(90deg); }
 .debt-personrow .debt-row__name { flex: 1; }
 /* Snapshot van de per-aspi schuld in het goedkeuringsverzoek. */
 .settle-snapshot { margin-top: 8px; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.5; }
+
+/* ===== Drankspel ===== */
+.ds-count { display: flex; align-items: center; gap: 14px; margin: 4px 0 4px; }
+.ds-count__val { font-size: 1.6rem; font-weight: 800; min-width: 2.5ch; text-align: center; font-variant-numeric: tabular-nums; }
+.ds-count__unit { color: var(--muted); }
+.ds-mode { display: flex; gap: 8px; margin: 4px 0; }
+.ds-mode__btn {
+  flex: 1; padding: 12px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--text); font-weight: 700;
+}
+.ds-mode__btn.is-active { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.ds-each { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ds-row { display: flex; align-items: center; gap: 10px; }
+.ds-row__name { flex: 1; font-weight: 600; }
+.ds-row__val { min-width: 3.5ch; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }

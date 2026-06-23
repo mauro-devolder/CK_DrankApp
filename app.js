@@ -1,6 +1,6 @@
 // Controller: schermwissels + alle interacties. Alle opslag loopt via store.js.
 
-import { DRINKS, DRINK_BY_CODE, BULK, BIERPONG } from './members.js';
+import { DRINKS, DRINK_BY_CODE, BULK, DRANKSPEL } from './members.js';
 import * as store from './store.js';
 
 // De aspi-app draait vanuit /aspi/, maar de foto's staan in de hoofdmap.
@@ -32,7 +32,7 @@ const screens = {
   admin: document.getElementById('screen-admin'),
   settings: document.getElementById('screen-settings'),
   mylog: document.getElementById('screen-mylog'),
-  bierpong: document.getElementById('screen-bierpong'),
+  drankspel: document.getElementById('screen-drankspel'),
 };
 
 function show(name) {
@@ -54,7 +54,7 @@ const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
 const HOST_BADGE = '<span class="host-badge">drankleiding</span>';
 
 // Toon een aantal netjes: heel getal zonder komma, anders met komma (max 2
-// decimalen, nullen weg). Nodig sinds bierpong halve/decimale pinten kan geven.
+// decimalen, nullen weg). Nodig sinds drankspel halve/decimale pinten kan geven.
 function fmtAmount(n) {
   const r = Math.round(n * 100) / 100;
   if (Number.isInteger(r)) return String(r);
@@ -179,13 +179,13 @@ async function renderMain() {
     const bulkRow = document.getElementById('bulk-row');
     bulkRow.innerHTML = '';
     if (!hideBulk) {
-      // Bierpong eerst (enkel leiding, want 'ANDERE' is verborgen in de aspi-app).
-      // Opent een spelerskeuze-scherm i.p.v. meteen op jezelf te zetten.
+      // Drankspel eerst (enkel leiding, want 'ANDERE' is verborgen in de aspi-app).
+      // Opent een eigen scherm i.p.v. meteen op jezelf te zetten.
       const bp = document.createElement('button');
       bp.type = 'button';
       bp.className = 'bulk-btn';
-      bp.innerHTML = `${symbolHTML(BIERPONG)}<span class="bulk-btn__name">${BIERPONG.naam}</span>`;
-      bp.addEventListener('click', renderBierpong);
+      bp.innerHTML = `${symbolHTML(DRANKSPEL)}<span class="bulk-btn__name">${DRANKSPEL.naam}</span>`;
+      bp.addEventListener('click', renderDrankspel);
       bulkRow.appendChild(bp);
 
       for (const b of BULK) {
@@ -479,56 +479,141 @@ async function confirmOthers() {
   await renderMain();
 }
 
-// --- Bierpong (enkel leiding) ----------------------------------------------
+// --- Drankspel (enkel leiding) ---------------------------------------------
+// Flow: 1) aantal pinten kiezen, 2) wie meespeelt, 3) gelijk verdelen (standaard)
+// of per persoon. Per-persoon-aandelen gaan in stappen van een halve pint.
 
-const bierpongPlayers = new Set();
+let dsTotal = DRANKSPEL.defaultPints;     // gekozen aantal pinten voor het spel
+const dsPlayers = new Set();              // wie meespeelt
+let dsMode = 'equal';                     // 'equal' | 'each'
+const dsShares = new Map();               // personId -> aandeel (enkel in 'each')
+const dsNames = new Map();                // personId -> naam (voor de per-persoon-rijen)
 
-async function renderBierpong() {
-  bierpongPlayers.clear();
+const roundHalf = (n) => Math.round(n * 2) / 2;
+function dsEqualShare() { return dsPlayers.size ? roundHalf(dsTotal / dsPlayers.size) : 0; }
+
+async function renderDrankspel() {
+  dsTotal = DRANKSPEL.defaultPints;
+  dsPlayers.clear();
+  dsShares.clear();
+  dsNames.clear();
+  dsMode = 'equal';
+  document.getElementById('ds-total').textContent = dsTotal;
+  document.getElementById('ds-mode-equal').classList.add('is-active');
+  document.getElementById('ds-mode-each').classList.remove('is-active');
+  document.getElementById('ds-each').hidden = true;
+
   const members = await store.getMembers(); // de leiding speelt zelf mee, dus niemand uitsluiten
-  const list = document.getElementById('bierpong-people');
+  const list = document.getElementById('drankspel-people');
   list.innerHTML = '';
   for (const m of members) {
+    dsNames.set(m.id, m.naam);
     const b = document.createElement('button');
     b.type = 'button';
     b.innerHTML = `<span class="tick">✓</span><span>${m.naam}</span>` + (m.host ? HOST_BADGE : '');
     b.addEventListener('click', () => {
-      if (bierpongPlayers.has(m.id)) { bierpongPlayers.delete(m.id); b.classList.remove('is-picked'); }
-      else { bierpongPlayers.add(m.id); b.classList.add('is-picked'); }
-      updateBierpongSummary();
+      if (dsPlayers.has(m.id)) { dsPlayers.delete(m.id); dsShares.delete(m.id); b.classList.remove('is-picked'); }
+      else { dsPlayers.add(m.id); if (dsMode === 'each') dsShares.set(m.id, dsEqualShare()); b.classList.add('is-picked'); }
+      if (dsMode === 'each') renderDsEach();
+      updateDrankspelSummary();
     });
     const li = document.createElement('li');
     li.appendChild(b);
     list.appendChild(li);
   }
-  updateBierpongSummary();
-  show('bierpong');
+  updateDrankspelSummary();
+  show('drankspel');
 }
 
-function updateBierpongSummary() {
-  const summary = document.getElementById('bierpong-summary');
-  const confirm = document.getElementById('bierpong-confirm');
-  const n = bierpongPlayers.size;
+function setDsMode(mode) {
+  dsMode = mode;
+  document.getElementById('ds-mode-equal').classList.toggle('is-active', mode === 'equal');
+  document.getElementById('ds-mode-each').classList.toggle('is-active', mode === 'each');
+  const each = document.getElementById('ds-each');
+  if (mode === 'each') {
+    // Start de per-persoon-verdeling vanaf een gelijke verdeling.
+    const share = dsEqualShare();
+    dsShares.clear();
+    for (const pid of dsPlayers) dsShares.set(pid, share);
+    renderDsEach();
+    each.hidden = false;
+  } else {
+    each.hidden = true;
+  }
+  updateDrankspelSummary();
+}
+
+function changeDsTotal(delta) {
+  dsTotal = Math.max(1, dsTotal + delta);
+  document.getElementById('ds-total').textContent = dsTotal;
+  // In 'each' is het totaal enkel een richtgetal; de aandelen blijven manueel.
+  updateDrankspelSummary();
+}
+
+// Per-persoon-rijen: enkel de meespelers, elk met − [aandeel] + (stap 0,5).
+function renderDsEach() {
+  const wrap = document.getElementById('ds-each');
+  wrap.innerHTML = '';
+  for (const pid of dsPlayers) {
+    const row = document.createElement('div');
+    row.className = 'ds-row';
+    const name = document.createElement('span');
+    name.className = 'ds-row__name';
+    name.textContent = dsNames.get(pid) || '?';
+    const minus = document.createElement('button');
+    minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−';
+    minus.disabled = (dsShares.get(pid) || 0) <= 0;
+    minus.addEventListener('click', () => { dsShares.set(pid, Math.max(0, (dsShares.get(pid) || 0) - 0.5)); renderDsEach(); updateDrankspelSummary(); });
+    const val = document.createElement('span');
+    val.className = 'ds-row__val'; val.textContent = fmtAmount(dsShares.get(pid) || 0);
+    const plus = document.createElement('button');
+    plus.type = 'button'; plus.className = 'stepbtn'; plus.textContent = '+';
+    plus.addEventListener('click', () => { dsShares.set(pid, (dsShares.get(pid) || 0) + 0.5); renderDsEach(); updateDrankspelSummary(); });
+    row.append(name, minus, val, plus);
+    wrap.appendChild(row);
+  }
+}
+
+function dsSum() { let s = 0; for (const pid of dsPlayers) s += (dsShares.get(pid) || 0); return s; }
+
+function updateDrankspelSummary() {
+  const summary = document.getElementById('drankspel-summary');
+  const confirm = document.getElementById('drankspel-confirm');
+  const n = dsPlayers.size;
   if (n === 0) {
-    summary.textContent = `Spel = ${BIERPONG.totalPints} pinten · tik wie meespeelt`;
+    summary.textContent = 'Tik wie meespeelt';
     confirm.disabled = true; confirm.textContent = 'Zet';
     return;
   }
-  const per = BIERPONG.totalPints / n;
-  summary.textContent = `${n} ${n === 1 ? 'speler' : 'spelers'} → ${fmtAmount(per)} pint elk`;
-  confirm.disabled = false;
-  confirm.textContent = `Zet (${fmtAmount(per)}p p.p.)`;
+  if (dsMode === 'equal') {
+    const per = dsTotal / n;
+    summary.textContent = `${n} ${n === 1 ? 'speler' : 'spelers'} → ${fmtAmount(per)} pint elk`;
+    confirm.disabled = false;
+    confirm.textContent = `Zet (${fmtAmount(per)}p p.p.)`;
+  } else {
+    const sum = dsSum();
+    summary.textContent = `Verdeeld: ${fmtAmount(sum)} pint`;
+    confirm.disabled = sum <= 0;
+    confirm.textContent = `Zet (${fmtAmount(sum)}p)`;
+  }
 }
 
-async function confirmBierpong() {
-  if (bierpongPlayers.size === 0) return;
+async function confirmDrankspel() {
+  const n = dsPlayers.size;
+  if (n === 0) return;
   const me = await store.getCurrentUserId();
-  const players = [...bierpongPlayers];
-  const per = BIERPONG.totalPints / players.length;
-  const entries = await store.addBierpong({ players, registeredBy: me, totalPints: BIERPONG.totalPints });
+  let shares;
+  if (dsMode === 'equal') {
+    const per = dsTotal / n;
+    shares = [...dsPlayers].map((pid) => ({ personId: pid, aantal: per }));
+  } else {
+    shares = [...dsPlayers].map((pid) => ({ personId: pid, aantal: dsShares.get(pid) || 0 }));
+  }
+  const totaal = shares.reduce((s, x) => s + x.aantal, 0);
+  const entries = await store.addDrankspel({ shares, registeredBy: me });
   await renderMain();
-  showUndo(`✓ Bierpong: ${fmtAmount(per)}p × ${players.length} ${players.length === 1 ? 'speler' : 'spelers'}`, entries.map((e) => e.id));
-  toast('Bierpong gezet');
+  showUndo(`✓ Drankspel: ${fmtAmount(totaal)} pint over ${n} ${n === 1 ? 'speler' : 'spelers'}`, entries.map((e) => e.id));
+  toast('Drankspel gezet');
 }
 
 // --- Postvak ---------------------------------------------------------------
@@ -545,7 +630,7 @@ async function renderPostvak() {
     const li = document.createElement('li');
     li.className = 'overview-row notif';
     const aantal = n.aantal ?? 1;
-    const bron = aantal !== 1 ? ' (bierpong)' : ''; // enkel bierpong geeft een kommagetal
+    const bron = aantal !== 1 ? ' (drankspel)' : ''; // enkel een drankspel geeft een kommagetal
     const top = `<div class="notif__top">` +
       (n.seen ? '' : '<span class="unseen-dot"></span>') +
       `<span class="notif__main">${n.door} zette ${fmtAmount(aantal)} ${drink ? drink.naam : n.drinkCode} op jouw naam${bron}</span>` +
@@ -687,7 +772,7 @@ function buildLogGroup(label, entries, showName = true) {
     const k = `${e.personId}|${e.drinkCode}|${del ? 'd' : 'a'}`;
     if (!agg.has(k)) agg.set(k, { persoon: e.persoon, code: e.drinkCode, del, times: [], n: 0 });
     agg.get(k).times.push(e.tijdstip);
-    agg.get(k).n += (e.aantal ?? 1); // bierpong telt als kommagetal mee
+    agg.get(k).n += (e.aantal ?? 1); // drankspel telt als kommagetal mee
   }
   const rows = [...agg.values()].sort((a, b) =>
     a.persoon.localeCompare(b.persoon, 'nl') ||
@@ -904,7 +989,7 @@ async function renderAdminReport() {
     const s = stock[d.code];
     if (s && Number.isFinite(s.in) && Number.isFinite(s.rest)) {
       hasStock = true;
-      // Afronden op 2 decimalen: bierpong maakt 'registered' decimaal, dus dit
+      // Afronden op 2 decimalen: drankspel maakt 'registered' decimaal, dus dit
       // voorkomt zwevende-komma-ruis (bv. 0,0000001) in de zwerf.
       const z = Math.round(((s.in - s.rest) - (registered[d.code] || 0)) * 100) / 100;
       if (z !== 0) zwerf[d.code] = z;
@@ -1093,8 +1178,12 @@ document.getElementById('back-main').addEventListener('click', renderMain);
 document.getElementById('go-others').addEventListener('click', renderOthers);
 document.getElementById('others-back').addEventListener('click', renderMain);
 document.getElementById('others-confirm').addEventListener('click', confirmOthers);
-document.getElementById('bierpong-back').addEventListener('click', renderMain);
-document.getElementById('bierpong-confirm').addEventListener('click', confirmBierpong);
+document.getElementById('drankspel-back').addEventListener('click', renderMain);
+document.getElementById('drankspel-confirm').addEventListener('click', confirmDrankspel);
+document.getElementById('ds-minus').addEventListener('click', () => changeDsTotal(-1));
+document.getElementById('ds-plus').addEventListener('click', () => changeDsTotal(1));
+document.getElementById('ds-mode-equal').addEventListener('click', () => setDsMode('equal'));
+document.getElementById('ds-mode-each').addEventListener('click', () => setDsMode('each'));
 document.getElementById('go-postvak').addEventListener('click', async () => { await renderPostvak(); await store.markNotificationsSeen(); });
 document.getElementById('postvak-back').addEventListener('click', renderMain);
 document.getElementById('go-admin').addEventListener('click', openAdmin);

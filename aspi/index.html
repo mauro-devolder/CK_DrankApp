@@ -103,21 +103,36 @@
     </div>
   </section>
 
-  <!-- ===== Bierpong (enkel leiding; in de aspi-app ongebruikt, maar nodig
-         zodat app.js het scherm-element vindt) ===== -->
-  <section id="screen-bierpong" class="screen" hidden>
+  <!-- ===== Drankspel (enkel leiding; in de aspi-app ongebruikt, maar nodig
+         zodat app.js het scherm + zijn knoppen vindt) ===== -->
+  <section id="screen-drankspel" class="screen" hidden>
     <header class="topbar">
-      <button id="bierpong-back" class="iconbtn" type="button" aria-label="Terug">←</button>
-      <h2 class="topbar__title">Bierpong</h2>
+      <button id="drankspel-back" class="iconbtn" type="button" aria-label="Terug">←</button>
+      <h2 class="topbar__title">Drankspel</h2>
       <span class="iconbtn iconbtn--ghost">←</span>
     </header>
     <main class="others">
-      <p class="others__step">Eén spel = 10 pinten, gelijk verdeeld. Tik wie meespeelt:</p>
-      <ul id="bierpong-people" class="pick-list"></ul>
+      <p class="others__step">1 · Hoeveel pinten heeft het spel?</p>
+      <div class="ds-count">
+        <button id="ds-minus" class="stepbtn" type="button" aria-label="Minder">−</button>
+        <span id="ds-total" class="ds-count__val">10</span>
+        <button id="ds-plus" class="stepbtn" type="button" aria-label="Meer">+</button>
+        <span class="ds-count__unit">pinten</span>
+      </div>
+
+      <p class="others__step">2 · Wie speelt mee?</p>
+      <ul id="drankspel-people" class="pick-list"></ul>
+
+      <p class="others__step">3 · Verdelen</p>
+      <div class="ds-mode">
+        <button id="ds-mode-equal" class="ds-mode__btn is-active" type="button">Gelijk verdeeld</button>
+        <button id="ds-mode-each" class="ds-mode__btn" type="button">Per persoon</button>
+      </div>
+      <div id="ds-each" class="ds-each" hidden></div>
     </main>
     <div class="undo-bar">
-      <span id="bierpong-summary" class="undo-bar__text">Tik wie meespeelt</span>
-      <button id="bierpong-confirm" class="undo-bar__btn" type="button" disabled>Zet</button>
+      <span id="drankspel-summary" class="undo-bar__text">Tik wie meespeelt</span>
+      <button id="drankspel-confirm" class="undo-bar__btn" type="button" disabled>Zet</button>
     </div>
   </section>
 

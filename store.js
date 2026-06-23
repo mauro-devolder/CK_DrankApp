@@ -170,20 +170,20 @@ export async function addMany({ personId, drinkCode, registeredBy, aantal }) {
   return entries;
 }
 
-// Bierpong: verdeel een spel (totalPints pinten) gelijk over de spelers. Elke
-// speler krijgt één pint-registratie met een (mogelijk decimaal) gewicht.
-// registeredBy = wie het ingaf, zodat de spelers een melding krijgen (behalve
-// die persoon zelf, als hij meespeelt).
-export async function addBierpong({ players, registeredBy, totalPints = 10 }) {
-  if (!players || !players.length) return [];
-  const per = totalPints / players.length;
+// Drankspel: ken elke deelnemer zijn aandeel pinten toe. 'shares' = lijst van
+// { personId, aantal } (aantal kan een kommagetal zijn). Elke deelnemer krijgt
+// één pint-registratie met dat gewicht. registeredBy = wie het ingaf, zodat de
+// deelnemers een melding krijgen (behalve die persoon zelf, als hij meespeelt).
+export async function addDrankspel({ shares, registeredBy }) {
+  if (!shares || !shares.length) return [];
   const all = loadCons();
   const entries = [];
   const t = new Date().toISOString();
-  for (const pid of players) {
+  for (const { personId, aantal } of shares) {
+    if (!aantal || aantal <= 0) continue; // 0 pinten = niets toevoegen
     const e = {
-      id: newId(), personId: pid, registeredBy: registeredBy || pid,
-      drinkCode: 'p', tijdstip: t, status: 'actief', aantal: per, synced: false,
+      id: newId(), personId, registeredBy: registeredBy || personId,
+      drinkCode: 'p', tijdstip: t, status: 'actief', aantal, synced: false,
     };
     all.push(e); entries.push(e);
   }

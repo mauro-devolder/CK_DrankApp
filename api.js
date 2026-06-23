@@ -28,9 +28,9 @@ function toRow(c) {
     tijdstip: c.tijdstip,
     status: c.status,
   };
-  // 'aantal' enkel meesturen als het afwijkt van 1 (bierpong). Zo blijven gewone
+  // 'aantal' enkel meesturen als het afwijkt van 1 (drankspel). Zo blijven gewone
   // registraties werken ook als de 'aantal'-kolom nog niet in de DB bestaat; de
-  // DB-default (1) vult de rest. Enkel bierpong vereist de nieuwe kolom.
+  // DB-default (1) vult de rest. Enkel drankspel vereist de nieuwe kolom.
   if (c.aantal != null && c.aantal !== 1) row.aantal = c.aantal;
   return row;
 }
