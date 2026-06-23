@@ -111,17 +111,20 @@ export async function deleteAllStock() {
 // --- App-config (host-pincode + epoch) -------------------------------------
 
 export async function fetchAppConfig() {
-  const res = await fetch(`${CONFIG()}?id=eq.1&select=host_pin,host_epoch`, { headers: headers() });
+  // Geen select -> alle kolommen, zodat dit ook werkt vóór de aspi-kolommen
+  // bestaan (oudere databases): host_pin/host_epoch + aspi_pin/aspi_epoch.
+  const res = await fetch(`${CONFIG()}?id=eq.1`, { headers: headers() });
   if (!res.ok) throw new Error(`config ${res.status}`);
   const rows = await res.json();
   return rows[0] || null;
 }
 
-export async function updateAppConfig(hostPin, hostEpoch) {
+// patch = { host_pin, host_epoch } of { aspi_pin, aspi_epoch }.
+export async function updateAppConfig(patch) {
   const res = await fetch(`${CONFIG()}?id=eq.1`, {
     method: 'PATCH',
     headers: headers({ Prefer: 'return=minimal' }),
-    body: JSON.stringify({ host_pin: hostPin, host_epoch: hostEpoch }),
+    body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(`config update ${res.status}: ${await res.text()}`);
 }

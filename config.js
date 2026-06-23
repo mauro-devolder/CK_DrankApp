@@ -19,3 +19,6 @@ export function isConfigured() {
 // Geen echte beveiliging — gewoon een drempel. Wijzig dit naar wens.
 export const HOST_PIN = '8888';
 
+// Aparte host-pincode voor de aspi-app (inloggen als aspi-/drankleiding daar).
+export const ASPI_PIN = '7777';
+

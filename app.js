@@ -3,17 +3,21 @@
 import { DRINKS, DRINK_BY_CODE, BULK } from './members.js';
 import * as store from './store.js';
 
+// De aspi-app draait vanuit /aspi/, maar de foto's staan in de hoofdmap.
+// window.ASSET_BASE ('../' in de aspi-app, leeg in de leiding-app) zet het recht.
+function assetUrl(p) { return (typeof window !== 'undefined' && window.ASSET_BASE || '') + p; }
+
 // Symbool voor een drank/knop: eigen foto als 'img' is ingevuld, anders de emoji.
 function symbolHTML(item) {
   return item.img
-    ? `<img class="drink-sym" src="${item.img}" alt="">`
+    ? `<img class="drink-sym" src="${assetUrl(item.img)}" alt="">`
     : `<span class="drink-btn__emoji">${item.emoji}</span>`;
 }
 
 // Klein symbool voor lijstjes (voorraad, per persoon): foto of emoji, compact.
 function rowSymHTML(item) {
   return item.img
-    ? `<img class="row-sym" src="${item.img}" alt="">`
+    ? `<img class="row-sym" src="${assetUrl(item.img)}" alt="">`
     : `<span class="row-sym row-sym--emoji">${item.emoji}</span>`;
 }
 
@@ -163,23 +167,32 @@ async function renderSettings() {
   const canChangePin = host && store.isSuperAdmin(meId);
   document.getElementById('settings-changepin').hidden = !canChangePin;
   document.getElementById('settings-changepin-hint').hidden = !canChangePin;
+  // Aspi-code wijzigen kan Mauro enkel vanuit de leiding-app (daar is hij opper-host).
+  const canChangeAspi = canChangePin && store.currentGroup() === 'leiding';
+  document.getElementById('settings-changeaspipin').hidden = !canChangeAspi;
   show('settings');
 }
 
-async function settingsChangePin() {
+async function doChangePin(targetGroup, label) {
   if (!askCode('Huidige code ter bevestiging:')) return;
-  const np = window.prompt('Nieuwe pincode (3 tot 8 cijfers):');
+  const np = window.prompt(`Nieuwe ${label} (3 tot 8 cijfers):`);
   if (np == null) return;
   const clean = np.trim();
   if (!/^\d{3,8}$/.test(clean)) { toast('Ongeldige pincode'); return; }
   try {
-    await store.changeHostPin(clean);
+    await store.changePin(targetGroup, clean);
     toast('Pincode gewijzigd — andere toestellen uitgelogd');
     await renderMain();
   } catch (e) {
     toast('Wijzigen mislukt — internet nodig');
   }
 }
+
+// Pincode van déze app wijzigen (opper-host).
+async function settingsChangePin() { return doChangePin(store.currentGroup(), 'pincode'); }
+
+// Vanuit de leiding-app kan Mauro ook de aspi-code (7777) wijzigen.
+async function settingsChangeAspiPin() { return doChangePin('aspi', 'aspi-pincode'); }
 
 function askCode(reden) {
   const pin = window.prompt(reden);
@@ -277,10 +290,12 @@ async function renderOverview() {
   const empty = document.getElementById('overview-empty');
   list.innerHTML = '';
 
+  const group = store.currentGroup();
   const rows = [];
   for (const [personId, counts] of Object.entries(totals)) {
     const m = await store.getMemberById(personId);
-    rows.push({ naam: m ? m.naam : '??', personId, counts });
+    if (!m || m.groep !== group) continue; // enkel de eigen groep tonen
+    rows.push({ naam: m.naam, personId, counts });
   }
   rows.sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
 
@@ -411,19 +426,24 @@ let editPersonId = null;
 async function openAdmin() {
   if (!store.isHostUnlocked()) return;
   adminDate = new Date();
-  await store.syncStock(store.monthKey(adminDate));
+  // De aspi-app beheert de voorraad niet (één frigo, dat is voor de drankleiding).
+  if (store.currentGroup() !== 'aspi') await store.syncStock(store.monthKey(adminDate));
   await renderAdmin();
 }
 
 async function renderAdmin() {
+  const aspi = store.currentGroup() === 'aspi';
   document.getElementById('admin-month').textContent = `${MONTHS[adminDate.getMonth()]} ${adminDate.getFullYear()}`;
   await renderAdminRequests();
   await renderAdminPersonEdit();
-  await renderAdminStock();
+  document.getElementById('stock-card').hidden = aspi; // geen voorraad in de aspi-app
+  if (!aspi) await renderAdminStock();
+  const exportSum = document.getElementById('export-summary');
+  if (exportSum) exportSum.textContent = aspi ? 'Aspi-afrekening' : 'Afrekening & export';
   await renderAdminReport();
   await renderAdminLog();
   await renderAdminPersonSelect();
-  // Reset enkel voor de super-admin (Mauro).
+  // Reset enkel voor de super-admin (Mauro) — onbestaand in de aspi-app.
   document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
 }
@@ -578,9 +598,10 @@ function buildGroupedLog(entries, listEl, emptyEl, showName = true) {
 }
 
 // Log-regels van een maand (incl. verwijderde, voor het tijdstip-overzicht),
-// optioneel voor één persoon.
+// enkel voor de groep van déze app, optioneel voor één persoon.
 async function fullLog(date, personId) {
-  let log = await store.getLogForMonth(date);
+  const group = store.currentGroup();
+  let log = (await store.getLogForMonth(date)).filter((e) => e.groep === group);
   if (personId) log = log.filter((e) => e.personId === personId);
   return log;
 }
@@ -681,17 +702,21 @@ async function renderAdminStock() {
 }
 
 async function renderAdminReport() {
+  const group = store.currentGroup();
   const cons = await store.getConsumptionsForMonth(adminDate);
   const maand = store.monthKey(adminDate);
   const stock = await store.getStock(maand);
 
-  // per persoon + totaal geregistreerd per drank
+  // 'registered' telt ALLE registraties (leiding + aspi) — nodig voor de zwerf,
+  // want de ene frigo wordt door beide groepen leeggedronken. De lijst/export
+  // tonen we enkel voor de eigen groep van deze app.
   const perPerson = {};
   const registered = {};
   for (const c of cons) {
+    registered[c.drinkCode] = (registered[c.drinkCode] || 0) + 1;
+    if (store.memberGroup(c.personId) !== group) continue;
     perPerson[c.personId] = perPerson[c.personId] || {};
     perPerson[c.personId][c.drinkCode] = (perPerson[c.personId][c.drinkCode] || 0) + 1;
-    registered[c.drinkCode] = (registered[c.drinkCode] || 0) + 1;
   }
 
   const list = document.getElementById('admin-overview');
@@ -710,7 +735,19 @@ async function renderAdminReport() {
     list.appendChild(li);
   }
 
-  // zwerf per drank (alleen waar in én rest ingevuld zijn)
+  const zline = document.getElementById('admin-zwerf');
+
+  // Aspi-app: geen voorraad/zwerf hier (één frigo, dat blijft bij de drankleiding).
+  // Enkel de aspi-regels exporteren, per persoon.
+  if (group === 'aspi') {
+    zline.hidden = true;
+    document.getElementById('export-text').value =
+      rows.map((r) => `${r.naam} ${formatCounts(r.counts)}`).join('\n');
+    return;
+  }
+  zline.hidden = false;
+
+  // zwerf per drank (alleen waar in én rest ingevuld zijn), o.b.v. álle registraties
   const zwerf = {};
   let warn = false, hasStock = false;
   for (const d of DRINKS) {
@@ -722,8 +759,6 @@ async function renderAdminReport() {
       if (z < 0) warn = true;
     }
   }
-
-  const zline = document.getElementById('admin-zwerf');
   zline.classList.toggle('warn', warn);
   if (!hasStock) zline.textContent = 'zwerf: vul de voorraad in om dit te berekenen';
   else zline.textContent = `zwerf: ${formatCounts(zwerf) || '—'}` + (warn ? '  ⚠ negatief = telfout in de voorraad' : '');
@@ -798,6 +833,7 @@ document.getElementById('settings-switch').addEventListener('click', settingsSwi
 document.getElementById('settings-hostlogin').addEventListener('click', settingsHostLogin);
 document.getElementById('settings-hostlogout').addEventListener('click', settingsHostLogout);
 document.getElementById('settings-changepin').addEventListener('click', settingsChangePin);
+document.getElementById('settings-changeaspipin').addEventListener('click', settingsChangeAspiPin);
 document.getElementById('edit-person').addEventListener('change', (e) => { editPersonId = e.target.value; renderEditRows(); });
 document.getElementById('reset-all').addEventListener('click', doResetAll);
 

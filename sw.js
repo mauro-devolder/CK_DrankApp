@@ -1,6 +1,7 @@
 // Minimale service worker: app-shell cachen zodat de app ook zonder bereik
 // opent. Bewust simpel gehouden voor de MVP.
 const CACHE = 'drank-v9';
+const PREFIX = 'drank-v'; // enkel eigen oude versies opruimen (niet de aspi-app: drank-aspi-v*)
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'app.js', 'store.js', 'members.js',
   'api.js', 'config.js', 'manifest.json',
@@ -17,7 +18,9 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      // Enkel onze eigen oudere caches wissen; de aspi-app (drank-aspi-v*) deelt
+      // dezelfde origin/CacheStorage en blijft dus ongemoeid.
+      Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

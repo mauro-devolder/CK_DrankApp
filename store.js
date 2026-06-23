@@ -10,19 +10,31 @@
 //  - Zonder Supabase-config draait alles lokaal.
 
 import { MEMBERS } from './members.js';
-import { HOST_PIN } from './config.js';
+import { HOST_PIN, ASPI_PIN } from './config.js';
 import * as api from './api.js';
 
 export const isConfigured = api.isConfigured;
 
-const KEY_USER = 'drank.currentUserId';
-const KEY_CONS = 'drank.consumptions';
-const KEY_SEEN = 'drank.seenNotifs';
-const KEY_STOCK = 'drank.stock';
-const KEY_HOST = 'drank.hostUnlocked';
-const KEY_PIN = 'drank.hostPin';            // gecachte server-pincode
-const KEY_EPOCH_SERVER = 'drank.epochServer'; // laatst gekende server-epoch
-const KEY_HOST_EPOCH = 'drank.hostEpoch';   // epoch waarop dit toestel host werd
+// In welke modus draait deze build: 'leiding' (standaard) of 'aspi'. Het
+// HTML-instappunt van de aspi-app zet window.APP_GROUP = 'aspi'.
+export function currentGroup() {
+  return (typeof window !== 'undefined' && window.APP_GROUP) || 'leiding';
+}
+
+// localStorage is gedeeld per origin: de leiding-app en de aspi-app staan op
+// dezelfde domeinnaam. Sleutels die PER APP verschillen (identiteit, host-status,
+// pincode) krijgen daarom een groep-suffix. De drankdata zelf en de voorraad zijn
+// wél gedeeld — één database, één frigo.
+function keyFor(base, group) { return group === 'aspi' ? `${base}.aspi` : base; }
+const G = currentGroup();
+const KEY_USER = keyFor('drank.currentUserId', G);
+const KEY_SEEN = keyFor('drank.seenNotifs', G);
+const KEY_HOST = keyFor('drank.hostUnlocked', G);
+const KEY_PIN = keyFor('drank.hostPin', G);            // gecachte server-pincode
+const KEY_EPOCH_SERVER = keyFor('drank.epochServer', G); // laatst gekende server-epoch
+const KEY_HOST_EPOCH = keyFor('drank.hostEpoch', G);   // epoch waarop dit toestel host werd
+const KEY_CONS = 'drank.consumptions';      // gedeeld: één database
+const KEY_STOCK = 'drank.stock';            // gedeeld: één frigo
 
 const listeners = new Set();
 function emit() { for (const fn of listeners) fn(); }
@@ -46,13 +58,6 @@ function newId() {
 
 // --- Leden -----------------------------------------------------------------
 
-// In welke modus draait deze build: 'leiding' (standaard) of 'aspi'. Het
-// HTML-instappunt van de aspi-app zet window.APP_GROUP = 'aspi'; de gewone
-// leiding-app laat het leeg en valt terug op 'leiding'.
-export function currentGroup() {
-  return (typeof window !== 'undefined' && window.APP_GROUP) || 'leiding';
-}
-
 // Enkel de leden van de groep van déze app. Naam-opzoeking (memberName,
 // getMemberById) blijft over álle groepen werken, zodat registered_by altijd
 // klopt — enkel de zichtbare lijsten zijn per groep gescheiden.
@@ -60,6 +65,9 @@ export async function getMembers() {
   const groep = currentGroup();
   return MEMBERS.filter((m) => m.actief && m.groep === groep);
 }
+
+// Groep van een lid (voor het filteren van logs/overzichten per app).
+export function memberGroup(id) { const m = MEMBERS.find((x) => x.id === id); return m ? m.groep : null; }
 export async function getMemberById(id) { return MEMBERS.find((m) => m.id === id) || null; }
 export async function isHost(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.host); }
 export function isSuperAdmin(id) { const m = MEMBERS.find((x) => x.id === id); return !!(m && m.superadmin); }
@@ -79,17 +87,28 @@ export function unlockHost() {
 }
 export function lockHost() { save(KEY_HOST, false); localStorage.removeItem(KEY_HOST_EPOCH); emit(); }
 
-// Huidige host-pincode (server-waarde indien gekend, anders de standaard).
-export function currentPin() { return load(KEY_PIN, HOST_PIN); }
+// Standaard-pincode van deze app (gebruikt zolang de server geen waarde geeft).
+function defaultPin() { return currentGroup() === 'aspi' ? ASPI_PIN : HOST_PIN; }
 
-// Opper-host wijzigt de pincode: epoch +1 -> alle andere toestellen verliezen host.
-export async function changeHostPin(newPin) {
+// Huidige host-pincode van deze app (server-waarde indien gekend, anders standaard).
+export function currentPin() { return load(KEY_PIN, defaultPin()); }
+
+// Opper-host wijzigt de pincode van een groep: epoch +1 -> alle andere toestellen
+// van die groep verliezen host. Mauro kan zo ook de aspi-code (7777) wijzigen
+// vanuit de leiding-app, waar hij als opper-host herkend wordt.
+export async function changePin(targetGroup, newPin) {
   if (!api.isConfigured() || !navigator.onLine) throw new Error('offline');
-  const newEpoch = load(KEY_EPOCH_SERVER, 1) + 1;
-  await api.updateAppConfig(newPin, newEpoch);
-  save(KEY_PIN, newPin);
-  save(KEY_EPOCH_SERVER, newEpoch);
-  save(KEY_HOST_EPOCH, newEpoch); // dit toestel (opper-host) blijft host
+  const isAspi = targetGroup === 'aspi';
+  const pinKey = keyFor('drank.hostPin', targetGroup);
+  const epochKey = keyFor('drank.epochServer', targetGroup);
+  const hostEpochKey = keyFor('drank.hostEpoch', targetGroup);
+  const newEpoch = load(epochKey, 1) + 1;
+  await api.updateAppConfig(isAspi
+    ? { aspi_pin: newPin, aspi_epoch: newEpoch }
+    : { host_pin: newPin, host_epoch: newEpoch });
+  save(pinKey, newPin);
+  save(epochKey, newEpoch);
+  if (targetGroup === currentGroup()) save(hostEpochKey, newEpoch); // déze app blijft host
   emit();
 }
 
@@ -241,6 +260,7 @@ export async function getLogForMonth(date = new Date()) {
       id: c.id,
       personId: c.personId,
       persoon: memberName(c.personId),
+      groep: memberGroup(c.personId),
       door: c.registeredBy !== c.personId ? memberName(c.registeredBy) : null,
       drinkCode: c.drinkCode,
       tijdstip: c.tijdstip,
@@ -382,14 +402,18 @@ async function syncConfig() {
   try {
     const cfg = await api.fetchAppConfig();
     if (!cfg) return;
-    save(KEY_PIN, cfg.host_pin);
-    save(KEY_EPOCH_SERVER, cfg.host_epoch);
+    const isAspi = currentGroup() === 'aspi';
+    const pin = isAspi ? cfg.aspi_pin : cfg.host_pin;
+    const epoch = isAspi ? cfg.aspi_epoch : cfg.host_epoch;
+    if (pin == null || epoch == null) return; // kolom bestaat (nog) niet -> standaard houden
+    save(KEY_PIN, pin);
+    save(KEY_EPOCH_SERVER, epoch);
     if (!isHostUnlocked()) return;
     const me = curUser();
-    if (isSuperAdmin(me)) { save(KEY_HOST_EPOCH, cfg.host_epoch); return; } // opper-host blijft
+    if (isSuperAdmin(me)) { save(KEY_HOST_EPOCH, epoch); return; } // opper-host blijft
     const localEpoch = load(KEY_HOST_EPOCH, null);
-    if (localEpoch == null) { save(KEY_HOST_EPOCH, cfg.host_epoch); return; } // bestaande host meenemen
-    if (localEpoch !== cfg.host_epoch) lockHost(); // pincode gewijzigd -> uitloggen als host
+    if (localEpoch == null) { save(KEY_HOST_EPOCH, epoch); return; } // bestaande host meenemen
+    if (localEpoch !== epoch) lockHost(); // pincode gewijzigd -> uitloggen als host
   } catch { /* tabel app_config bestaat (nog) niet -> stil overslaan */ }
 }
 

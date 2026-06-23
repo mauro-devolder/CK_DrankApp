@@ -59,6 +59,11 @@ create table if not exists public.app_config (
   constraint app_config_single check (id = 1)
 );
 
+-- Aparte pincode + epoch voor de aspi-app (zelfde mechanisme als de leiding-code).
+-- 'add column if not exists' zodat een bestaande database mee bijgewerkt wordt.
+alter table public.app_config add column if not exists aspi_pin   text not null default '7777';
+alter table public.app_config add column if not exists aspi_epoch int  not null default 1;
+
 insert into public.app_config (id) values (1) on conflict (id) do nothing;
 
 alter table public.app_config enable row level security;

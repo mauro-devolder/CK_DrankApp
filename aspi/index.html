@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f6f4a" />
   <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <title>Chiro Drankjes</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+  <title>Aspi Drankjes</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <!-- Aspi-modus: dezelfde code als de leiding-app, maar groep 'aspi'.
+       ASSET_BASE='../' omdat deze app in /aspi/ staat en de foto's in de hoofdmap. -->
+  <script>window.APP_GROUP = 'aspi'; window.ASSET_BASE = '../';</script>
 </head>
 <body>
 
@@ -62,11 +65,11 @@
     <main class="settings">
       <p class="settings__who">Ingelogd als <b id="settings-name">—</b></p>
       <button id="settings-switch" class="bigbtn bigbtn--ghost" type="button">Wissel van persoon / uitloggen</button>
-      <button id="settings-hostlogin" class="bigbtn" type="button">Inloggen als drankleiding</button>
-      <button id="settings-hostlogout" class="bigbtn bigbtn--ghost" type="button" hidden>Drankleiding-modus uitschakelen</button>
-      <p class="settings__hint">Wisselen van persoon en inloggen als drankleiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
+      <button id="settings-hostlogin" class="bigbtn" type="button">Inloggen als aspileiding</button>
+      <button id="settings-hostlogout" class="bigbtn bigbtn--ghost" type="button" hidden>Aspileiding-modus uitschakelen</button>
+      <p class="settings__hint">Wisselen van persoon en inloggen als aspileiding vragen de code, zodat niemand zich als iemand anders kan voordoen.</p>
       <button id="settings-changepin" class="bigbtn bigbtn--danger" type="button" hidden>Pincode wijzigen (opper-host)</button>
-      <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de drankleiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
+      <p id="settings-changepin-hint" class="settings__hint" hidden>Als opper-host kun je de pincode wijzigen. Alle andere toestellen verliezen dan de aspileiding-modus en moeten opnieuw inloggen met de nieuwe code.</p>
       <button id="settings-changeaspipin" class="bigbtn bigbtn--ghost" type="button" hidden>Aspi-pincode (7777) wijzigen</button>
     </main>
   </section>
@@ -116,7 +119,7 @@
     </main>
   </section>
 
-  <!-- ===== Beheer (host) ===== -->
+  <!-- ===== Beheer (aspileiding) ===== -->
   <section id="screen-admin" class="screen" hidden>
     <header class="topbar">
       <button id="admin-back" class="iconbtn" type="button" aria-label="Terug">←</button>
@@ -159,7 +162,9 @@
         </details>
       </section>
 
-      <section id="stock-card" class="card">
+      <!-- Geen voorraad in de aspi-app: app.js verbergt deze kaart (één frigo,
+           dat blijft bij de drankleiding). Element blijft staan voor app.js. -->
+      <section id="stock-card" class="card" hidden>
         <details>
           <summary class="card__collapse">Voorraad</summary>
           <p class="card__hint">Vul in per drankje: <b>in</b> (begin) en <b>rest</b> (geteld op het einde).</p>
@@ -169,9 +174,9 @@
 
       <section class="card">
         <details open>
-          <summary id="export-summary" class="card__collapse">Afrekening &amp; export</summary>
+          <summary id="export-summary" class="card__collapse">Aspi-afrekening</summary>
           <ul id="admin-overview" class="overview-list"></ul>
-          <p id="admin-zwerf" class="zwerf-line"></p>
+          <p id="admin-zwerf" class="zwerf-line" hidden></p>
           <textarea id="export-text" class="export" readonly rows="8"></textarea>
           <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
         </details>
@@ -201,6 +206,6 @@
   <!-- Klein meldingsvenster voor "naam gewijzigd" e.d. -->
   <div id="toast" class="toast" hidden></div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="../app.js"></script>
 </body>
 </html>
