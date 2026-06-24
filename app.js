@@ -1311,19 +1311,27 @@ function refreshBell() {
   else { badge.hidden = true; }
 }
 
-// Eigen lopende teller op het hoofdscherm: leiding = huidige periode, aspi = deze
-// maand. Directe feedback ("klopt mijn tik?") zonder naar "Mijn log" te gaan.
+// 'Vandaag' loopt van 07:00 tot 07:00 's ochtends. Geeft het tijdstip van de
+// laatste 07:00-grens (vóór 07:00 hoort een drankje nog bij de dag ervoor).
+function todayStartISO() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(7, 0, 0, 0);
+  if (now < start) start.setDate(start.getDate() - 1);
+  return start.toISOString();
+}
+
+// Eigen teller op het hoofdscherm: wat je VANDAAG (sinds 07:00) hebt getikt.
+// Directe feedback ("klopt mijn tik?") zonder naar "Mijn log" te gaan.
 async function refreshSelfTotal() {
   const el = document.getElementById('self-total');
   if (!el) return;
   const me = await store.getCurrentUserId();
   const m = await store.getMemberById(me);
   if (!m || m.leidingOnly) { el.hidden = true; return; } // aspileiding heeft geen eigen teller
-  const counts = store.currentGroup() === 'leiding'
-    ? await store.getCountsForPersonPeriod(me)
-    : await store.getCountsForPerson(me, new Date());
+  const counts = await store.getCountsForPersonSince(me, todayStartISO());
   const txt = formatCounts(counts);
-  el.textContent = txt ? `Jouw teller: ${txt}` : 'Jouw teller: nog niets';
+  el.textContent = txt ? `Vandaag: ${txt}` : 'Vandaag: nog niets';
   el.hidden = false;
 }
 

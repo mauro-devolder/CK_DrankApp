@@ -1,6 +1,6 @@
 // Minimale service worker: app-shell cachen zodat de app ook zonder bereik
 // opent. Bewust simpel gehouden voor de MVP.
-const CACHE = 'drank-v17';
+const CACHE = 'drank-v18';
 const PREFIX = 'drank-v'; // enkel eigen oude versies opruimen (niet de aspi-app: drank-aspi-v*)
 const ASSETS = [
   '.', 'index.html', 'styles.css', 'app.js', 'store.js', 'members.js',

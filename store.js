@@ -556,6 +556,17 @@ export async function getCountsForPersonPeriod(personId) {
   return counts;
 }
 
+// Actieve tellingen van één persoon sinds een tijdstip (voor de 'vandaag'-teller).
+export async function getCountsForPersonSince(personId, sinceISO) {
+  const counts = {};
+  for (const c of loadCons()) {
+    if (c.personId === personId && c.status === 'actief' && c.tijdstip >= sinceISO) {
+      counts[c.drinkCode] = (counts[c.drinkCode] || 0) + (c.aantal ?? 1);
+    }
+  }
+  return counts;
+}
+
 // Voor de zwerf: alle actieve registraties sinds de periodestart.
 export async function getConsumptionsForPeriod() { return activeSincePeriod(); }
 
