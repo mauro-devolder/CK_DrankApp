@@ -45,6 +45,7 @@
     </header>
 
     <main class="drinks">
+      <p id="self-total" class="self-total" hidden></p>
       <div id="drink-grid" class="drink-grid"></div>
       <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
       <div id="bulk-head" class="bulk-head">Andere</div>
@@ -95,6 +96,7 @@
       <p class="others__step">1 · Kies een drankje</p>
       <div id="others-drinks" class="chiprow"></div>
       <p class="others__step">2 · Tik wie het krijgt</p>
+      <input id="others-search" class="search" type="search" placeholder="Zoek een naam…" autocomplete="off" />
       <ul id="others-people" class="pick-list"></ul>
     </main>
     <div class="undo-bar">
@@ -122,6 +124,7 @@
         </div>
 
         <p class="others__step">2 · Wie speelt mee?</p>
+        <input id="drankspel-search" class="search" type="search" placeholder="Zoek een naam…" autocomplete="off" />
         <ul id="drankspel-people" class="pick-list"></ul>
       </div>
 
@@ -230,6 +233,15 @@
           <p id="admin-zwerf" class="zwerf-line" hidden></p>
           <textarea id="export-text" class="export" readonly rows="8"></textarea>
           <button id="copy-export" class="bigbtn" type="button">Kopieer export</button>
+        </details>
+      </section>
+
+      <section id="aspi-archive-card" class="card">
+        <details>
+          <summary class="card__collapse">Vorige aspi-afrekeningen</summary>
+          <p class="card__hint">Afgesloten afrekeningen met datum van–tot en wie hoeveel open had.</p>
+          <ul id="aspi-archive-list" class="period-list"></ul>
+          <p id="aspi-archive-empty" class="overview-empty" hidden>Nog geen afgesloten afrekeningen.</p>
         </details>
       </section>
 

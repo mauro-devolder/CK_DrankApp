@@ -91,6 +91,10 @@ create table if not exists public.aspi_settlements (
 
 create index if not exists aspi_settlements_person_idx on public.aspi_settlements (person_id);
 
+-- Snapshot (per-aspi schuld als tekst) op het moment van goedkeuring, voor het
+-- archief "Vorige aspi-afrekeningen". 'add column if not exists' = veilig opnieuw te draaien.
+alter table public.aspi_settlements add column if not exists snapshot text;
+
 alter table public.aspi_settlements enable row level security;
 
 drop policy if exists "anon all settlements" on public.aspi_settlements;

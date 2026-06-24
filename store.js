@@ -483,24 +483,40 @@ export async function getPendingAspiSettlements() {
     .map((s) => ({ id: s.id, requestedAt: s.requestedAt, perPerson }));
 }
 
-function resolveSettlement(id, status) {
+function resolveSettlement(id, status, snapshot) {
   const all = loadSettle();
   const s = all.find((x) => x.id === id);
   if (!s) return;
   s.status = status;
   s.resolvedAt = new Date().toISOString();
   // Goedkeuren legt het watermerk op het moment van aanvragen: alles tot dan is
-  // afgerekend, drankjes daarna blijven openstaan.
-  if (status === 'approved') s.effectiveAt = s.requestedAt;
+  // afgerekend, drankjes daarna blijven openstaan. We bewaren ook een snapshot
+  // (wie hoeveel open had) voor het archief.
+  if (status === 'approved') { s.effectiveAt = s.requestedAt; s.snapshot = snapshot || ''; }
   s.synced = false;
   saveSettle(all);
   emit();
   scheduleSync();
 }
 
-// Drankleiding beslist.
-export async function approveAspiSettlement(id) { resolveSettlement(id, 'approved'); }
+// Drankleiding beslist (bij goedkeuren geeft de UI de snapshot mee voor het archief).
+export async function approveAspiSettlement(id, snapshot) { resolveSettlement(id, 'approved', snapshot); }
 export async function rejectAspiSettlement(id) { resolveSettlement(id, 'rejected'); }
+
+// Archief: goedgekeurde aspi-afrekeningen, nieuwste eerst, met datum van–tot
+// (vorige afrekening → deze) en de snapshot van wie hoeveel open had.
+export async function getAspiSettlementArchive() {
+  const approved = loadSettle()
+    .filter((s) => s.status === 'approved' && s.effectiveAt)
+    .sort((a, b) => a.effectiveAt.localeCompare(b.effectiveAt)); // oudste eerst
+  const out = [];
+  let prev = null;
+  for (const s of approved) {
+    out.push({ id: s.id, from: prev, to: s.effectiveAt, snapshot: s.snapshot || '' });
+    prev = s.effectiveAt;
+  }
+  return out.reverse(); // nieuwste eerst
+}
 
 // --- Afrekenperiodes (leiding) ---------------------------------------------
 //

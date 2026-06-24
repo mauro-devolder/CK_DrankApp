@@ -102,7 +102,7 @@ export async function fetchAspiConsumptions(ids) {
 // --- Aspi-afrekeningen (schuld op 0, met goedkeuring drankleiding) ----------
 
 function settleToRow(s) {
-  return {
+  const row = {
     id: s.id,
     person_id: s.personId,
     status: s.status,
@@ -110,6 +110,10 @@ function settleToRow(s) {
     effective_at: s.effectiveAt ?? null,
     resolved_at: s.resolvedAt ?? null,
   };
+  // 'snapshot' enkel meesturen als die er is (goedgekeurde afrekening). Zo blijven
+  // gewone settlements werken ook als de 'snapshot'-kolom nog niet bestaat.
+  if (s.snapshot != null) row.snapshot = s.snapshot;
+  return row;
 }
 function settleFromRow(r) {
   return {
@@ -119,13 +123,14 @@ function settleFromRow(r) {
     requestedAt: r.requested_at,
     effectiveAt: r.effective_at,
     resolvedAt: r.resolved_at,
+    snapshot: r.snapshot ?? null,
     synced: true,
   };
 }
 
 export async function fetchSettlements() {
-  const q = `?select=id,person_id,status,requested_at,effective_at,resolved_at`;
-  const res = await fetch(SETTLE() + q, { headers: headers() });
+  // select=* zodat dit ook werkt vóór de 'snapshot'-kolom bestaat.
+  const res = await fetch(SETTLE() + '?select=*', { headers: headers() });
   if (!res.ok) throw new Error(`settlements ${res.status}: ${await res.text()}`);
   return (await res.json()).map(settleFromRow);
 }

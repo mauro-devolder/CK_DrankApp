@@ -41,6 +41,7 @@
     </header>
 
     <main class="drinks">
+      <p id="self-total" class="self-total" hidden></p>
       <div id="drink-grid" class="drink-grid"></div>
       <button id="go-others" class="others-btn" type="button">＋ Voor anderen</button>
       <div id="bulk-head" class="bulk-head">Andere</div>
@@ -91,6 +92,7 @@
       <p class="others__step">1 · Kies een drankje</p>
       <div id="others-drinks" class="chiprow"></div>
       <p class="others__step">2 · Tik wie het krijgt</p>
+      <input id="others-search" class="search" type="search" placeholder="Zoek een naam…" autocomplete="off" />
       <ul id="others-people" class="pick-list"></ul>
     </main>
     <div class="undo-bar">
@@ -117,6 +119,7 @@
         </div>
 
         <p class="others__step">2 · Wie speelt mee?</p>
+        <input id="drankspel-search" class="search" type="search" placeholder="Zoek een naam…" autocomplete="off" />
         <ul id="drankspel-people" class="pick-list"></ul>
       </div>
 
@@ -175,34 +178,19 @@
         <button id="month-next" class="iconbtn" type="button" aria-label="Volgende maand">→</button>
       </div>
 
+      <!-- Te doen: verschijnen enkel als er iets openstaat -->
       <section id="admin-requests-card" class="card" hidden>
         <h3 class="card__title">Verwijderverzoeken</h3>
         <ul id="admin-requests" class="overview-list"></ul>
       </section>
 
-      <section class="card">
-        <details id="edit-details">
-          <summary class="card__collapse">Aanpassen per persoon</summary>
-          <p class="card__hint">Corrigeer hoeveel iemand heeft. Wijzigingen tellen meteen mee.</p>
-          <select id="edit-person" class="select"></select>
-          <div id="edit-rows" class="edit-rows"></div>
-        </details>
+      <section id="admin-aspi-settlements-card" class="card" hidden>
+        <h3 class="card__title">Aspi-afrekeningen goedkeuren</h3>
+        <p class="card__hint">De aspileiding heeft een schuld geïnd en vraagt om die op 0 te zetten. Keur enkel goed als het geld effectief binnen is — daarna telt die aspi weer van 0.</p>
+        <ul id="admin-aspi-settlements" class="overview-list"></ul>
       </section>
 
-      <section class="card">
-        <details>
-          <summary class="card__collapse">Log</summary>
-          <p class="card__hint">Deze week per dag, eerdere weken per week. Tik om open te klappen. Per groep zie je het uur van elk drankje. (Een dag/week loopt van maandag 08:00 tot de maandag erna.)</p>
-          <ul id="admin-log" class="log-list"></ul>
-          <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd in deze periode.</p>
-
-          <h4 class="card__subtitle">Log van één persoon</h4>
-          <p class="card__hint">Controleer of iemand zijn drankjes wel heeft ingetikt.</p>
-          <select id="log-person" class="select"></select>
-          <ul id="admin-person-log" class="log-list"></ul>
-          <p id="admin-person-log-empty" class="overview-empty">Kies een persoon om hun log te zien.</p>
-        </details>
-      </section>
+      <h3 class="admin-section">Afrekenen</h3>
 
       <section id="stock-card" class="card">
         <details>
@@ -237,10 +225,30 @@
         </details>
       </section>
 
-      <section id="admin-aspi-settlements-card" class="card" hidden>
-        <h3 class="card__title">Aspi-afrekeningen goedkeuren</h3>
-        <p class="card__hint">De aspileiding heeft een schuld geïnd en vraagt om die op 0 te zetten. Keur enkel goed als het geld effectief binnen is — daarna telt die aspi weer van 0.</p>
-        <ul id="admin-aspi-settlements" class="overview-list"></ul>
+      <h3 class="admin-section">Correcties &amp; controle</h3>
+
+      <section class="card">
+        <details id="edit-details">
+          <summary class="card__collapse">Aanpassen per persoon</summary>
+          <p class="card__hint">Corrigeer hoeveel iemand heeft. Wijzigingen tellen meteen mee.</p>
+          <select id="edit-person" class="select"></select>
+          <div id="edit-rows" class="edit-rows"></div>
+        </details>
+      </section>
+
+      <section class="card">
+        <details>
+          <summary class="card__collapse">Log</summary>
+          <p class="card__hint">Deze week per dag, eerdere weken per week. Tik om open te klappen. Per groep zie je het uur van elk drankje. (Een dag/week loopt van maandag 08:00 tot de maandag erna.)</p>
+          <ul id="admin-log" class="log-list"></ul>
+          <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd in deze periode.</p>
+
+          <h4 class="card__subtitle">Log van één persoon</h4>
+          <p class="card__hint">Controleer of iemand zijn drankjes wel heeft ingetikt.</p>
+          <select id="log-person" class="select"></select>
+          <ul id="admin-person-log" class="log-list"></ul>
+          <p id="admin-person-log-empty" class="overview-empty">Kies een persoon om hun log te zien.</p>
+        </details>
       </section>
 
       <section id="admin-reset-card" class="card card--danger" hidden>

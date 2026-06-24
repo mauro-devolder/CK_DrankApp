@@ -51,6 +51,18 @@ function toast(msg) {
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
   'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 
+// Filter een personen-pick-lijst op naam (li.dataset.name). De selectie blijft:
+// we verbergen enkel niet-passende rijen i.p.v. de lijst te herbouwen.
+function wirePickSearch(inputId, listEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.value = '';
+  input.oninput = () => {
+    const q = input.value.trim().toLowerCase();
+    for (const li of listEl.children) li.hidden = !!q && !(li.dataset.name || '').includes(q);
+  };
+}
+
 const HOST_BADGE = '<span class="host-badge">drankleiding</span>';
 
 // Toon een aantal netjes: heel getal zonder komma, anders met komma (max 2
@@ -214,6 +226,7 @@ async function renderMain() {
   refreshBell();
   refreshSyncStatus();
   refreshGear();
+  await refreshSelfTotal();
   show('main');
 }
 
@@ -456,10 +469,12 @@ async function renderOthers() {
       updateOthersSummary();
     });
     const li = document.createElement('li');
+    li.dataset.name = m.naam.toLowerCase();
     li.appendChild(b);
     list.appendChild(li);
   }
 
+  wirePickSearch('others-search', list);
   updateOthersSummary();
   show('others');
 }
@@ -529,9 +544,11 @@ async function renderDrankspel() {
       updateDrankspelSummary();
     });
     const li = document.createElement('li');
+    li.dataset.name = m.naam.toLowerCase();
     li.appendChild(b);
     list.appendChild(li);
   }
+  wirePickSearch('drankspel-search', list);
   updateDrankspelSummary();
   show('drankspel');
 }
@@ -729,6 +746,7 @@ async function renderAdmin() {
   await renderAdminLog();
   await renderAdminPersonSelect();
   await renderAspiSettlements(); // afrekenverzoeken goedkeuren (enkel drankleiding, leiding-app)
+  await renderAspiArchive();     // vorige aspi-afrekeningen (aspi-app)
   await renderPeriods();         // vorige periodes (leiding-app)
   // 'Nieuwe periode starten' enkel in de leiding-app.
   const npCard = document.getElementById('new-period-card');
@@ -1233,12 +1251,40 @@ async function renderAspiSettlements() {
       if (!window.confirm(
         "Afrekening van alle aspi's goedkeuren?\n\n" +
         'Alle openstaande schulden worden op 0 gezet. Doe dit enkel als het geld binnen is.')) return;
-      await store.approveAspiSettlement(r.id); toast('Goedgekeurd — alles op 0 gezet'); renderAdmin();
+      // Snapshot bewaren voor het archief "Vorige aspi-afrekeningen".
+      const snapshot = r.perPerson.map((p) => `${p.naam} ${formatCounts(p.counts)}`).join('\n');
+      await store.approveAspiSettlement(r.id, snapshot); toast('Goedgekeurd — alles op 0 gezet'); renderAdmin();
     });
     const no = document.createElement('button');
     no.className = 'btn-no'; no.textContent = 'Weiger';
     no.addEventListener('click', async () => { await store.rejectAspiSettlement(r.id); toast('Geweigerd'); renderAdmin(); });
     li.appendChild(ok); li.appendChild(no);
+    list.appendChild(li);
+  }
+}
+
+// Archief van afgesloten aspi-afrekeningen (aspi-app): datum van–tot + snapshot
+// van wie hoeveel open had bij de afrekening.
+async function renderAspiArchive() {
+  const card = document.getElementById('aspi-archive-card');
+  if (!card) return; // bestaat enkel in de aspi-app
+  const arch = await store.getAspiSettlementArchive();
+  const list = document.getElementById('aspi-archive-list');
+  const empty = document.getElementById('aspi-archive-empty');
+  list.innerHTML = '';
+  empty.hidden = arch.length > 0;
+  for (const a of arch) {
+    const li = document.createElement('li');
+    const det = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.className = 'log-sum';
+    sum.innerHTML = `<span>${a.from ? `${fmtDate(a.from)} – ` : 'tot '}${fmtDate(a.to)}</span>`;
+    det.appendChild(sum);
+    const pre = document.createElement('pre');
+    pre.className = 'period-export';
+    pre.textContent = a.snapshot || '(geen detail bewaard)';
+    det.appendChild(pre);
+    li.appendChild(det);
     list.appendChild(li);
   }
 }
@@ -1265,6 +1311,22 @@ function refreshBell() {
   else { badge.hidden = true; }
 }
 
+// Eigen lopende teller op het hoofdscherm: leiding = huidige periode, aspi = deze
+// maand. Directe feedback ("klopt mijn tik?") zonder naar "Mijn log" te gaan.
+async function refreshSelfTotal() {
+  const el = document.getElementById('self-total');
+  if (!el) return;
+  const me = await store.getCurrentUserId();
+  const m = await store.getMemberById(me);
+  if (!m || m.leidingOnly) { el.hidden = true; return; } // aspileiding heeft geen eigen teller
+  const counts = store.currentGroup() === 'leiding'
+    ? await store.getCountsForPersonPeriod(me)
+    : await store.getCountsForPerson(me, new Date());
+  const txt = formatCounts(counts);
+  el.textContent = txt ? `Jouw teller: ${txt}` : 'Jouw teller: nog niets';
+  el.hidden = false;
+}
+
 // Live verversen wanneer er data van anderen binnenkomt (zonder het rondje- of
 // onboardingscherm te verstoren, en zonder voorraad-invoervelden te clobberen).
 store.subscribe(() => {
@@ -1278,6 +1340,8 @@ store.subscribe(() => {
   // Aspileiding-hoofdscherm: de live log van alle aspi's wél bijwerken.
   const hlw = document.getElementById('host-log-wrap');
   if (!screens.main.hidden && hlw && !hlw.hidden) renderHostLog();
+  // Eigen teller live bijwerken op het hoofdscherm.
+  if (!screens.main.hidden) refreshSelfTotal();
 });
 
 // --- Bedrading -------------------------------------------------------------
