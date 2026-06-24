@@ -229,8 +229,6 @@ function activeForMonth(date) {
   });
 }
 
-export async function getConsumptionsForMonth(date = new Date()) { return activeForMonth(date); }
-
 export async function getTotalsForMonth(date = new Date()) {
   const totals = {};
   for (const c of activeForMonth(date)) {

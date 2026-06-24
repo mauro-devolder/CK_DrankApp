@@ -7,7 +7,7 @@
 
 // 'groep' bepaalt in welke app iemand thuishoort: 'leiding' of 'aspi'.
 // De leiding-app toont enkel groep 'leiding', de aspi-app enkel groep 'aspi'.
-// Mauro is opper-host en regelt beide; hij staat in 'leiding' (daar tikt hij
+// Mauro is de drankleiding-beheerder en regelt beide; hij staat in 'leiding' (daar tikt hij
 // zijn eigen drankjes) en host de aspi-app via de code, dus geen aspi-rij nodig.
 export const MEMBERS = [
   { id: 'm01', naam: 'Bavo',     actief: true, groep: 'leiding' },
