@@ -133,9 +133,6 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text);
 }
 .search:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
-/* Zoekveld boven een personenlijst krijgt wat ademruimte naar de lijst toe. */
-.pick-list { margin-top: 10px; }
-
 /* Eigen lopende teller bovenaan het hoofdscherm. */
 .self-total {
   margin: 2px 2px 12px; color: var(--muted); font-weight: 600;
@@ -370,7 +367,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .chip.is-selected { border-color: transparent; color: #fff; }
 
-.pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pick-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .pick-list button {
   width: 100%;
   text-align: left;
