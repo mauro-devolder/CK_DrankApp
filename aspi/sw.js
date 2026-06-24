@@ -1,6 +1,6 @@
 // Service worker voor de aspi-app (scope /aspi/). Cachet de eigen shell + de
 // gedeelde bestanden uit de hoofdmap, zodat de app ook zonder bereik opent.
-const CACHE = 'drank-aspi-v6';
+const CACHE = 'drank-aspi-v7';
 const PREFIX = 'drank-aspi-v'; // enkel eigen oude versies opruimen (niet die van de leiding-app)
 const ASSETS = [
   '.', 'index.html', 'manifest.json',

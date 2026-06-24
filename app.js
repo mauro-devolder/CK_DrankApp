@@ -79,6 +79,13 @@ function fmtClock(iso) {
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Enkel de datum: "23/06/2026".
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
 // --- Onboarding ------------------------------------------------------------
 
 async function renderOnboarding() {
@@ -695,14 +702,23 @@ async function openAdmin() {
   if (!store.isHostUnlocked()) return;
   adminDate = new Date();
   // De aspi-app beheert de voorraad niet (één frigo, dat is voor de drankleiding).
-  if (store.currentGroup() !== 'aspi') await store.syncStock(store.monthKey(adminDate));
-  await store.syncAspi(); // verse schulden + afrekenverzoeken
+  if (store.currentGroup() !== 'aspi') await store.syncStock('current');
+  await store.syncAspi();    // verse schulden + afrekenverzoeken
+  await store.syncPeriods(); // verse vorige-periodes
   await renderAdmin();
 }
 
 async function renderAdmin() {
   const aspi = store.currentGroup() === 'aspi';
-  document.getElementById('admin-month').textContent = `${MONTHS[adminDate.getMonth()]} ${adminDate.getFullYear()}`;
+  // Maandnavigatie enkel in de aspi-app; de leiding werkt per PERIODE.
+  document.getElementById('month-prev').hidden = !aspi;
+  document.getElementById('month-next').hidden = !aspi;
+  if (aspi) {
+    document.getElementById('admin-month').textContent = `${MONTHS[adminDate.getMonth()]} ${adminDate.getFullYear()}`;
+  } else {
+    const start = store.currentPeriodStart();
+    document.getElementById('admin-month').textContent = start ? `Periode sinds ${fmtDate(start)}` : 'Huidige periode';
+  }
   await renderAdminRequests();
   await renderAdminPersonEdit();
   document.getElementById('stock-card').hidden = aspi; // geen voorraad in de aspi-app
@@ -713,6 +729,10 @@ async function renderAdmin() {
   await renderAdminLog();
   await renderAdminPersonSelect();
   await renderAspiSettlements(); // afrekenverzoeken goedkeuren (enkel drankleiding, leiding-app)
+  await renderPeriods();         // vorige periodes (leiding-app)
+  // 'Nieuwe periode starten' enkel in de leiding-app.
+  const npCard = document.getElementById('new-period-card');
+  if (npCard) npCard.hidden = aspi;
   // Reset enkel voor de super-admin (Mauro) — onbestaand in de aspi-app.
   document.getElementById('admin-reset-card').hidden = !store.isSuperAdmin(await store.getCurrentUserId());
   show('admin');
@@ -750,7 +770,10 @@ async function renderEditRows() {
   const wrap = document.getElementById('edit-rows');
   wrap.innerHTML = '';
   if (!editPersonId) return;
-  const counts = await store.getCountsForPerson(editPersonId, adminDate);
+  const leiding = store.currentGroup() === 'leiding';
+  const counts = leiding
+    ? await store.getCountsForPersonPeriod(editPersonId)
+    : await store.getCountsForPerson(editPersonId, adminDate);
   for (const d of DRINKS) {
     const n = counts[d.code] || 0;
     const row = document.createElement('div');
@@ -758,7 +781,9 @@ async function renderEditRows() {
     row.innerHTML = `<span class="edit-row__name">${rowSymHTML(d)}${d.naam}</span>`;
     const minus = document.createElement('button');
     minus.type = 'button'; minus.className = 'stepbtn'; minus.textContent = '−'; minus.disabled = n <= 0;
-    minus.addEventListener('click', () => store.hostRemoveOne(editPersonId, d.code, adminDate));
+    minus.addEventListener('click', () => leiding
+      ? store.hostRemoveOnePeriod(editPersonId, d.code)
+      : store.hostRemoveOne(editPersonId, d.code, adminDate));
     const cnt = document.createElement('span');
     cnt.className = 'edit-row__count'; cnt.textContent = fmtAmount(n);
     const plus = document.createElement('button');
@@ -877,8 +902,17 @@ async function fullLog(date, personId) {
   return log;
 }
 
+// Log voor het Beheer-scherm: leiding = huidige PERIODE, aspi = gekozen maand.
+async function adminLog(personId) {
+  const group = store.currentGroup();
+  let log = group === 'leiding' ? await store.getLogForPeriod() : await store.getLogForMonth(adminDate);
+  log = log.filter((e) => e.groep === group);
+  if (personId) log = log.filter((e) => e.personId === personId);
+  return log;
+}
+
 async function renderAdminLog() {
-  buildGroupedLog(await fullLog(adminDate), document.getElementById('admin-log'),
+  buildGroupedLog(await adminLog(), document.getElementById('admin-log'),
     document.getElementById('admin-log-empty'), true);
 }
 
@@ -907,8 +941,8 @@ async function renderAdminPersonLog() {
     emptyEl.textContent = 'Kies een persoon om hun log te zien.';
     return;
   }
-  emptyEl.textContent = 'Niets getikt deze maand.';
-  buildGroupedLog(await fullLog(adminDate, logPersonId), listEl, emptyEl, false);
+  emptyEl.textContent = 'Niets getikt.';
+  buildGroupedLog(await adminLog(logPersonId), listEl, emptyEl, false);
 }
 
 // Persoonlijke log (iedereen): de eigen drankjes deze maand.
@@ -943,8 +977,7 @@ async function renderAdminRequests() {
 }
 
 async function renderAdminStock() {
-  const maand = store.monthKey(adminDate);
-  const stock = await store.getStock(maand);
+  const stock = await store.getStock('current'); // voorraad hoort bij de huidige periode
   const grid = document.getElementById('admin-stock');
   grid.innerHTML = '';
   for (const d of DRINKS) {
@@ -962,7 +995,7 @@ async function renderAdminStock() {
       input.addEventListener('change', async () => {
         const n = input.value === '' ? null : parseInt(input.value, 10);
         if (n == null || Number.isNaN(n)) return;
-        await store.setStock(maand, d.code, type, n);
+        await store.setStock('current', d.code, type, n);
         renderAdminReport();
       });
       label.appendChild(input);
@@ -978,20 +1011,21 @@ async function renderAdminReport() {
   // Aspi-app: cumulatieve openstaande schuld i.p.v. een maandafrekening.
   if (group === 'aspi') { await renderAspiDebts(); return; }
 
-  const cons = await store.getConsumptionsForMonth(adminDate);
-  const maand = store.monthKey(adminDate);
-  const stock = await store.getStock(maand);
+  // Leiding-app: afrekening van de HUIDIGE PERIODE (sinds de laatste afrekening).
+  const cons = await store.getConsumptionsForPeriod();
+  const stock = await store.getStock('current');
 
   // 'registered' telt ALLE registraties (leiding + aspi) — nodig voor de zwerf,
   // want de ene frigo wordt door beide groepen leeggedronken. De lijst/export
-  // tonen we enkel voor de eigen groep van deze app.
+  // tonen we enkel voor de eigen groep van deze app. 'aantal' (drankspel kan
+  // decimaal zijn) telt mee i.p.v. rijen tellen.
   const perPerson = {};
   const registered = {};
   for (const c of cons) {
-    registered[c.drinkCode] = (registered[c.drinkCode] || 0) + 1;
+    registered[c.drinkCode] = (registered[c.drinkCode] || 0) + (c.aantal ?? 1);
     if (store.memberGroup(c.personId) !== group) continue;
     perPerson[c.personId] = perPerson[c.personId] || {};
-    perPerson[c.personId][c.drinkCode] = (perPerson[c.personId][c.drinkCode] || 0) + 1;
+    perPerson[c.personId][c.drinkCode] = (perPerson[c.personId][c.drinkCode] || 0) + (c.aantal ?? 1);
   }
 
   const list = document.getElementById('admin-overview');
@@ -1041,6 +1075,55 @@ async function copyExport() {
   const text = document.getElementById('export-text').value;
   try { await navigator.clipboard.writeText(text); toast('Gekopieerd'); }
   catch { document.getElementById('export-text').select(); toast('Selecteer en kopieer'); }
+}
+
+// --- Periodes (leiding) ----------------------------------------------------
+
+async function doStartPeriod() {
+  if (!window.confirm(
+    'Nieuwe periode starten?\n\n' +
+    'De huidige periode wordt afgesloten en bewaard onder "Vorige periodes"; ' +
+    'de tellingen én de voorraad gaan naar 0. Kopieer eerst de export hierboven.')) return;
+  if (!askCode('Code drankleiding om de nieuwe periode te starten:')) return;
+  const text = document.getElementById('export-text').value;
+  await store.startNewPeriod(text);
+  toast('Nieuwe periode gestart');
+  await renderAdmin();
+}
+
+// Archief van afgesloten periodes: datum van–tot + de exporttekst eronder.
+async function renderPeriods() {
+  const card = document.getElementById('periods-card');
+  if (!card) return; // bestaat enkel in de leiding-app
+  card.hidden = store.currentGroup() === 'aspi';
+  const periods = await store.getPeriods();
+  const list = document.getElementById('periods-list');
+  const empty = document.getElementById('periods-empty');
+  list.innerHTML = '';
+  empty.hidden = periods.length > 0;
+  for (const p of periods) {
+    const li = document.createElement('li');
+    const det = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.className = 'log-sum';
+    sum.innerHTML = `<span>${fmtDate(p.startAt)} – ${fmtDate(p.endAt)}</span>`;
+    det.appendChild(sum);
+    const pre = document.createElement('pre');
+    pre.className = 'period-export';
+    pre.textContent = p.exportText || '(geen export)';
+    det.appendChild(pre);
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'bigbtn bigbtn--ghost';
+    copy.textContent = 'Kopieer';
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(p.exportText || ''); toast('Gekopieerd'); }
+      catch { toast('Kopiëren mislukt'); }
+    });
+    det.appendChild(copy);
+    li.appendChild(det);
+    list.appendChild(li);
+  }
 }
 
 // --- Aspi-schulden (aspi-app) ----------------------------------------------
@@ -1191,7 +1274,7 @@ store.subscribe(() => {
   if (!screens.overview.hidden) renderOverview();
   if (!screens.postvak.hidden) renderPostvak();
   // Log niet live verversen: zo blijven opengeklapte groepen open.
-  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAspiSettlements(); }
+  if (!screens.admin.hidden) { renderAdminRequests(); renderEditRows(); renderAdminReport(); renderAspiSettlements(); renderPeriods(); }
   // Aspileiding-hoofdscherm: de live log van alle aspi's wél bijwerken.
   const hlw = document.getElementById('host-log-wrap');
   if (!screens.main.hidden && hlw && !hlw.hidden) renderHostLog();
@@ -1230,6 +1313,8 @@ document.getElementById('settings-changepin').addEventListener('click', settings
 document.getElementById('settings-changeaspipin').addEventListener('click', settingsChangeAspiPin);
 document.getElementById('edit-person').addEventListener('change', (e) => { editPersonId = e.target.value; renderEditRows(); });
 document.getElementById('reset-all').addEventListener('click', doResetAll);
+const startPeriodBtn = document.getElementById('start-period'); // enkel in de leiding-app
+if (startPeriodBtn) startPeriodBtn.addEventListener('click', doStartPeriod);
 
 async function init() {
   // Vraag persistente opslag aan: vermindert dat iOS de offline-wachtrij en de

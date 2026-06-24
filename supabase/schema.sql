@@ -95,3 +95,21 @@ alter table public.aspi_settlements enable row level security;
 
 drop policy if exists "anon all settlements" on public.aspi_settlements;
 create policy "anon all settlements" on public.aspi_settlements for all to anon using (true) with check (true);
+
+-- Afgesloten afrekenperiodes (leiding-app). De drankleiding sluit op het einde
+-- van een periode af: dat archiveert de exporttekst + de datums van–tot. De start
+-- van de huidige (nog open) periode = max(end_at), of het begin als er nog geen is.
+create table if not exists public.periods (
+  id          uuid        primary key,              -- door de telefoon gegenereerd
+  start_at    timestamptz not null,
+  end_at      timestamptz not null,
+  export_text text        not null default '',
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists periods_end_idx on public.periods (end_at);
+
+alter table public.periods enable row level security;
+
+drop policy if exists "anon all periods" on public.periods;
+create policy "anon all periods" on public.periods for all to anon using (true) with check (true);

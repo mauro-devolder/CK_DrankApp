@@ -194,7 +194,7 @@
           <summary class="card__collapse">Log</summary>
           <p class="card__hint">Deze week per dag, eerdere weken per week. Tik om open te klappen. Per groep zie je het uur van elk drankje. (Een dag/week loopt van maandag 08:00 tot de maandag erna.)</p>
           <ul id="admin-log" class="log-list"></ul>
-          <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd deze maand.</p>
+          <p id="admin-log-empty" class="overview-empty" hidden>Nog niets geregistreerd in deze periode.</p>
 
           <h4 class="card__subtitle">Log van één persoon</h4>
           <p class="card__hint">Controleer of iemand zijn drankjes wel heeft ingetikt.</p>
@@ -222,6 +222,21 @@
         </details>
       </section>
 
+      <section id="new-period-card" class="card card--danger" hidden>
+        <h3 class="card__title">Nieuwe periode starten</h3>
+        <p class="card__hint"><b>Kopieer eerst de export hierboven.</b> Dit sluit de huidige periode af (je vindt ze terug onder “Vorige periodes”) en zet de tellingen én de voorraad op 0 voor de nieuwe periode. De drankjes-historiek blijft bestaan. Vraagt de code.</p>
+        <button id="start-period" class="bigbtn bigbtn--danger" type="button">Nieuwe periode starten</button>
+      </section>
+
+      <section id="periods-card" class="card" hidden>
+        <details>
+          <summary class="card__collapse">Vorige periodes</summary>
+          <p class="card__hint">Afgesloten periodes met datum van–tot en de afrekening eronder.</p>
+          <ul id="periods-list" class="period-list"></ul>
+          <p id="periods-empty" class="overview-empty" hidden>Nog geen afgesloten periodes.</p>
+        </details>
+      </section>
+
       <section id="admin-aspi-settlements-card" class="card" hidden>
         <h3 class="card__title">Aspi-afrekeningen goedkeuren</h3>
         <p class="card__hint">De aspileiding heeft een schuld geïnd en vraagt om die op 0 te zetten. Keur enkel goed als het geld effectief binnen is — daarna telt die aspi weer van 0.</p>
@@ -230,7 +245,7 @@
 
       <section id="admin-reset-card" class="card card--danger" hidden>
         <h3 class="card__title">Alles resetten</h3>
-        <p class="card__hint">Wist <b>definitief</b> alle registraties én voorraad — voor iedereen, alle maanden. Kan niet ongedaan gemaakt worden.</p>
+        <p class="card__hint">Wist <b>definitief</b> alle registraties, voorraad én periodes — voor iedereen. Kan niet ongedaan gemaakt worden. (Voor een gewone afrekening gebruik je “Nieuwe periode starten”.)</p>
         <button id="reset-all" class="bigbtn bigbtn--danger" type="button">Alles resetten</button>
       </section>
     </main>

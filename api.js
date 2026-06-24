@@ -9,6 +9,7 @@ const REST = () => `${SUPABASE_URL}/rest/v1/consumptions`;
 const STOCK = () => `${SUPABASE_URL}/rest/v1/stock_entries`;
 const CONFIG = () => `${SUPABASE_URL}/rest/v1/app_config`;
 const SETTLE = () => `${SUPABASE_URL}/rest/v1/aspi_settlements`;
+const PERIODS = () => `${SUPABASE_URL}/rest/v1/periods`;
 
 function headers(extra = {}) {
   return {
@@ -140,6 +141,33 @@ export async function pushSettlements(items) {
   if (!res.ok) throw new Error(`settle push ${res.status}: ${await res.text()}`);
 }
 
+// --- Afrekenperiodes (leiding-app) -----------------------------------------
+
+function periodToRow(p) {
+  return { id: p.id, start_at: p.startAt, end_at: p.endAt, export_text: p.exportText ?? '' };
+}
+function periodFromRow(r) {
+  return { id: r.id, startAt: r.start_at, endAt: r.end_at, exportText: r.export_text ?? '', synced: true };
+}
+
+export async function fetchPeriods() {
+  const q = `?select=id,start_at,end_at,export_text`;
+  const res = await fetch(PERIODS() + q, { headers: headers() });
+  if (!res.ok) throw new Error(`periods ${res.status}: ${await res.text()}`);
+  return (await res.json()).map(periodFromRow);
+}
+
+// Upsert (merge op id) — idempotent.
+export async function pushPeriods(items) {
+  if (!items.length) return;
+  const res = await fetch(PERIODS(), {
+    method: 'POST',
+    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+    body: JSON.stringify(items.map(periodToRow)),
+  });
+  if (!res.ok) throw new Error(`period push ${res.status}: ${await res.text()}`);
+}
+
 // --- Voorraad --------------------------------------------------------------
 
 export async function upsertStock({ drinkCode, type, aantal, maand }) {
@@ -156,6 +184,14 @@ export async function fetchStock(maand) {
   const res = await fetch(STOCK() + q, { headers: headers() });
   if (!res.ok) throw new Error(`stock fetch ${res.status}: ${await res.text()}`);
   return res.json();
+}
+
+// Alle voorraad-rijen van één sleutel wissen (bij het starten van een nieuwe periode).
+export async function deleteStockByMaand(maand) {
+  const res = await fetch(`${STOCK()}?maand=eq.${encodeURIComponent(maand)}`, {
+    method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }),
+  });
+  if (!res.ok) throw new Error(`stock del ${res.status}: ${await res.text()}`);
 }
 
 // --- Volledige reset (enkel super-admin) -----------------------------------
@@ -175,6 +211,11 @@ export async function deleteAllStock() {
 export async function deleteAllSettlements() {
   const res = await fetch(`${SETTLE()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
   if (!res.ok) throw new Error(`reset settle ${res.status}: ${await res.text()}`);
+}
+
+export async function deleteAllPeriods() {
+  const res = await fetch(`${PERIODS()}?${ALL}`, { method: 'DELETE', headers: headers({ Prefer: 'return=minimal' }) });
+  if (!res.ok) throw new Error(`reset periods ${res.status}: ${await res.text()}`);
 }
 
 // --- App-config (host-pincode + epoch) -------------------------------------

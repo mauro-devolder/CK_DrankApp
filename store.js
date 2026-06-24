@@ -37,6 +37,8 @@ const KEY_CONS = 'drank.consumptions';      // gedeeld: één database
 const KEY_STOCK = 'drank.stock';            // gedeeld: één frigo
 const KEY_ASPI_CONS = 'drank.aspiCons';     // gedeeld: actieve aspi-rijen (cross-maand) voor de cumulatieve schuld
 const KEY_SETTLE = 'drank.aspiSettlements'; // gedeeld: afrekeningen (schuld op 0)
+const KEY_PERIODS = 'drank.periods';        // gedeeld: afgesloten afrekenperiodes (leiding)
+const STOCK_KEY = 'current';                // voorraad hoort bij de huidige periode (niet per maand)
 const KEY_PINS = 'drank.pins';              // gedeeld: laatst gekende codes (enkel voor weergave aan de drankleiding)
 
 const listeners = new Set();
@@ -500,6 +502,135 @@ function resolveSettlement(id, status) {
 export async function approveAspiSettlement(id) { resolveSettlement(id, 'approved'); }
 export async function rejectAspiSettlement(id) { resolveSettlement(id, 'rejected'); }
 
+// --- Afrekenperiodes (leiding) ---------------------------------------------
+//
+// De leiding rekent per PERIODE af (niet per kalendermaand). Een nieuwe periode
+// starten archiveert de exporttekst + datums en legt een watermerk: de huidige
+// periode begint bij het einde van de laatst afgesloten periode. Niets wordt
+// gewist — alles telt vanaf dat watermerk (zoals de aspi-afrekening).
+
+function loadPeriods() { return load(KEY_PERIODS, []); }
+function savePeriods(arr) { save(KEY_PERIODS, arr); }
+
+// Start van de huidige (open) periode = laatste end_at, of null (= vanaf het begin).
+export function currentPeriodStart() {
+  let m = null;
+  for (const p of loadPeriods()) if (p.endAt && (!m || p.endAt > m)) m = p.endAt;
+  return m;
+}
+
+// Actieve registraties sinds de periodestart (alle groepen — één frigo).
+function activeSincePeriod() {
+  const start = currentPeriodStart();
+  return loadCons().filter((c) => c.status === 'actief' && (!start || c.tijdstip >= start));
+}
+
+export async function getTotalsForPeriod() {
+  const totals = {};
+  for (const c of activeSincePeriod()) {
+    totals[c.personId] = totals[c.personId] || {};
+    totals[c.personId][c.drinkCode] = (totals[c.personId][c.drinkCode] || 0) + (c.aantal ?? 1);
+  }
+  return totals;
+}
+
+export async function getCountsForPersonPeriod(personId) {
+  const counts = {};
+  for (const c of activeSincePeriod()) {
+    if (c.personId === personId) counts[c.drinkCode] = (counts[c.drinkCode] || 0) + (c.aantal ?? 1);
+  }
+  return counts;
+}
+
+// Voor de zwerf: alle actieve registraties sinds de periodestart.
+export async function getConsumptionsForPeriod() { return activeSincePeriod(); }
+
+// Volledig logboek van de periode (alle statussen), nieuwste eerst.
+export async function getLogForPeriod() {
+  const start = currentPeriodStart();
+  return loadCons()
+    .filter((c) => !start || c.tijdstip >= start)
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip))
+    .map((c) => ({
+      id: c.id,
+      personId: c.personId,
+      persoon: memberName(c.personId),
+      groep: memberGroup(c.personId),
+      door: c.registeredBy !== c.personId ? memberName(c.registeredBy) : null,
+      drinkCode: c.drinkCode,
+      tijdstip: c.tijdstip,
+      status: c.status,
+      aantal: c.aantal ?? 1,
+    }));
+}
+
+// Host haalt er één weg binnen de periode: de meest recente actieve.
+export async function hostRemoveOnePeriod(personId, drinkCode) {
+  const start = currentPeriodStart();
+  const all = loadCons();
+  const cands = all
+    .filter((c) => c.personId === personId && c.drinkCode === drinkCode && c.status === 'actief' && (!start || c.tijdstip >= start))
+    .sort((a, b) => b.tijdstip.localeCompare(a.tijdstip));
+  if (!cands.length) return false;
+  const target = cands[0];
+  if (!target.synced) saveCons(all.filter((c) => c.id !== target.id));
+  else { target.status = 'verwijderd'; target.synced = false; saveCons(all); }
+  emit();
+  scheduleSync();
+  return true;
+}
+
+// Afgesloten periodes, nieuwste eerst.
+export async function getPeriods() {
+  return loadPeriods().slice().sort((a, b) => b.endAt.localeCompare(a.endAt));
+}
+
+function earliestActiveTijdstip() {
+  let min = null;
+  for (const c of loadCons()) if (c.status === 'actief' && (!min || c.tijdstip < min)) min = c.tijdstip;
+  return min;
+}
+
+// Sluit de huidige periode af: archiveer de exporttekst + datums en wis de
+// voorraad (de nieuwe periode begint leeg). De drankregistraties blijven staan.
+export async function startNewPeriod(exportText) {
+  const now = new Date().toISOString();
+  const entry = {
+    id: newId(),
+    startAt: currentPeriodStart() || earliestActiveTijdstip() || now,
+    endAt: now,
+    exportText: exportText || '',
+    synced: false,
+  };
+  const all = loadPeriods();
+  all.push(entry);
+  savePeriods(all);
+  await clearCurrentStock();
+  emit();
+  scheduleSync();
+  return entry;
+}
+
+// Periodes synchroniseren (pushen + ophalen), net als de aspi-afrekeningen.
+export async function syncPeriods() {
+  if (!api.isConfigured() || !navigator.onLine) return;
+  try {
+    const toPush = loadPeriods().filter((p) => !p.synced);
+    if (toPush.length) await api.pushPeriods(toPush);
+    const pushedIds = new Set(toPush.map((p) => p.id));
+    const server = await api.fetchPeriods();
+    const local = loadPeriods();
+    const byId = new Map(local.map((p) => [p.id, p]));
+    for (const p of local) if (pushedIds.has(p.id)) p.synced = true;
+    for (const row of server) {
+      const cur = byId.get(row.id);
+      if (!cur) { local.push(row); byId.set(row.id, row); }
+      else if (cur.synced) Object.assign(cur, row); // server leidend
+    }
+    savePeriods(local);
+  } catch (e) { console.warn('periodes sync mislukt:', e.message); }
+}
+
 // --- Voorraad --------------------------------------------------------------
 
 export function monthKey(date = new Date()) {
@@ -540,6 +671,17 @@ export async function syncStock(maand) {
     for (const r of rows) store[`${r.maand}|${r.drink_code}|${r.type}`] = r.aantal;
     save(KEY_STOCK, store);
   } catch (e) { console.warn('voorraad ophalen mislukt:', e.message); }
+}
+
+// Voorraad van de huidige periode wissen (bij het starten van een nieuwe periode).
+async function clearCurrentStock() {
+  const store = loadStock();
+  for (const k of Object.keys(store)) if (k.startsWith(`${STOCK_KEY}|`)) delete store[k];
+  save(KEY_STOCK, store);
+  if (api.isConfigured() && navigator.onLine) {
+    try { await api.deleteStockByMaand(STOCK_KEY); }
+    catch (e) { console.warn('voorraad wissen mislukt:', e.message); }
+  }
 }
 
 // Aspi-schulden synchroniseren: open/afgehandelde afrekeningen pushen + ophalen,
@@ -616,8 +758,9 @@ export async function syncNow() {
     }
 
     saveCons(all);
-    await syncStock(monthKey());
+    await syncStock(STOCK_KEY);
     await syncAspi();
+    await syncPeriods();
     await syncConfig();
     emit();
   } catch (err) {
@@ -674,11 +817,13 @@ export async function resetAll() {
     await api.deleteAllConsumptions();
     await api.deleteAllStock();
     await api.deleteAllSettlements();
+    await api.deleteAllPeriods();
     localStorage.removeItem(KEY_CONS);
     localStorage.removeItem(KEY_STOCK);
     localStorage.removeItem(KEY_SEEN);
     localStorage.removeItem(KEY_ASPI_CONS);
     localStorage.removeItem(KEY_SETTLE);
+    localStorage.removeItem(KEY_PERIODS);
     emit();
   } finally {
     resetting = false; // syncs weer toelaten

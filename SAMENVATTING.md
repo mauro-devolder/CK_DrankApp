@@ -117,13 +117,32 @@ uitrol:** gewone registraties sturen `aantal` enkel mee als het ≠ 1 is en de f
 `select=*`, dus de app blijft werken ook al is de `aantal`-kolom nog niet gedraaid — enkel
 **bierpong** vereist die kolom.
 
+## 5d. Afrekenperiodes (leiding) — vervangt de kalendermaand
+
+De leiding-app rekent **per periode** af, niet per kalendermaand. In `Beheer` is de maand-nav weg;
+er staat een label *"Periode sinds <datum>"*. De afrekening/export, de voorraad (in/rest), het log
+en "aanpassen per persoon" tonen allemaal de **huidige periode**. De kaart **"Nieuwe periode
+starten"** (vraagt de drankleiding-code) sluit de periode af: ze archiveert de exporttekst + datums
+en zet tellingen + voorraad op 0. De kaart **"Vorige periodes"** toont elke afgesloten periode
+(datum van–tot + exporttekst, kopieerbaar).
+
+Aanpak = **watermerk** (zoals de aspi-afrekening): de huidige periode begint bij `max(end_at)` van
+de tabel `periods`; tellingen = actieve registraties met `tijdstip >= periodestart`. Er wordt
+**niets gewist** (de drankjes-historiek blijft) — dus dit is meteen bestand tegen de cross-device
+reset-problemen. Voorraad hoort bij de periode via de vaste sleutel `'current'` in `stock_entries`
+(gewist bij een nieuwe periode). Alles staat in `store.js` (`currentPeriodStart`,
+`getTotalsForPeriod`/`…Period`-varianten, `startNewPeriod`, `syncPeriods`). **Enkel de leiding-app**;
+de aspi-app houdt zijn eigen aspi-afrekening + maand-log. *Bekende grens (zoals voorheen):* een vers
+toestel laadt enkel de huidige maand — de afrekening doe je op het actieve hosttoestel.
+
 ## 6. Openstaande punten
 
 1. **`supabase/schema.sql` opnieuw draaien** in Supabase bij elke schema-uitbreiding. Nodig voor:
-   `app_config`-pincode + `aspi_pin`/`aspi_epoch`, de tabel `aspi_settlements`, en de kolom
-   **`consumptions.aantal`** (voor bierpong). Het script is idempotent (`if not exists`) en wist
-   geen data. Tot een onderdeel gedraaid is, werkt de rest gewoon door; enkel díe functie
-   (afrekenen-sync resp. bierpong) propageert pas zodra de kolom/tabel bestaat.
+   `app_config`-pincode + `aspi_pin`/`aspi_epoch`, de tabel `aspi_settlements`, de kolom
+   **`consumptions.aantal`** (drankspel) en de tabel **`periods`** (afrekenperiodes). Het script is
+   idempotent (`if not exists`) en wist geen data. Tot een onderdeel gedraaid is, werkt de rest
+   gewoon door; enkel díe functie propageert pas zodra de kolom/tabel bestaat (een periode starten
+   werkt lokaal sowieso).
 2. **Apart aspi-icoon** — er staat nu een gegenereerd icoon in `/aspi/` (zelfde beeld + subtiel
    "CK-aspi" onderaan), verwezen vanuit `aspi/manifest.json`/`aspi/index.html`/`aspi/sw.js`.
    Mauro kan `aspi/icon-192.png` / `aspi/icon-512.png` / `aspi/apple-touch-icon.png` vervangen
